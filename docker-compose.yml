@@ -1,0 +1,147 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ecomoi
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres && (psql -U postgres -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='ecomoi'\" | grep -q 1 || createdb -U postgres ecomoi)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    image: node:22-bookworm-slim
+    working_dir: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/ecomoi
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: supersecret
+      COOKIE_SECRET: supersecret
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_0e7b15b6af66ec0cc488b8c17cdf2b0020ad203653949c239d686790d670f819
+      AUTH_MFA_ENCRYPTION_KEY: f5af95e14913a597916a4378be6abf47fa7cbc74237e25c8d6ad483f9e8ac8e3
+      STORE_CORS: http://localhost:8000
+      ADMIN_CORS: http://localhost:9000,http://localhost:5173
+      AUTH_CORS: http://localhost:9000,http://localhost:5173,http://localhost:8000
+      MEDUSA_ADMIN_ONBOARDING_TYPE: nextjs
+      MEDUSA_ADMIN_ONBOARDING_NEXTJS_DIRECTORY: apps/storefront
+      PNPM_HOME: /pnpm
+    ports:
+      - "9000:9000"
+    volumes:
+      - .:/app
+      - root_node_modules:/app/node_modules
+      - backend_node_modules:/app/apps/backend/node_modules
+      - pnpm_store:/pnpm/store
+    command: >
+      sh -c "corepack enable &&
+             pnpm config set store-dir /pnpm/store &&
+             pnpm install --frozen-lockfile &&
+             pnpm --filter @dtc/backend exec medusa db:migrate --execute-safe-links &&
+             pnpm --filter @dtc/backend dev"
+
+  storefront:
+    image: node:22-bookworm-slim
+    working_dir: /app
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      NODE_ENV: development
+      MEDUSA_BACKEND_URL: http://backend:9000
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_0e7b15b6af66ec0cc488b8c17cdf2b0020ad203653949c239d686790d670f819
+      NEXT_PUBLIC_DEFAULT_REGION: vn
+      NEXT_PUBLIC_BASE_URL: http://localhost:8000
+      NEXT_PUBLIC_DIALOGFLOW_PROJECT_ID: leanning-495806
+      NEXT_PUBLIC_DIALOGFLOW_AGENT_ID: 49eca4ed-a835-4988-8a1a-45597562a831
+      NEXT_PUBLIC_DIALOGFLOW_LOCATION: asia-southeast1
+      NEXT_PUBLIC_DIALOGFLOW_LANGUAGE_CODE: vi
+      NEXT_PUBLIC_DIALOGFLOW_CHAT_TITLE: Bot Medusa
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/app/google-credentials.json}
+      DIALOGFLOW_PROJECT_ID: ${DIALOGFLOW_PROJECT_ID:-leanning-495806}
+      DIALOGFLOW_AGENT_ID: ${DIALOGFLOW_AGENT_ID:-49eca4ed-a835-4988-8a1a-45597562a831}
+      DIALOGFLOW_LOCATION: ${DIALOGFLOW_LOCATION:-asia-southeast1}
+      DIALOGFLOW_LANGUAGE_CODE: ${DIALOGFLOW_LANGUAGE_CODE:-vi}
+      CHATBOT_SERVICE_URL: http://chatbot-service:8080/webhook
+      NEXT_PUBLIC_STRIPE_KEY: ""
+      PNPM_HOME: /pnpm
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - root_node_modules:/app/node_modules
+      - storefront_node_modules:/app/apps/storefront/node_modules
+      - pnpm_store:/pnpm/store
+    command: >
+      sh -c "corepack enable &&
+             pnpm config set store-dir /pnpm/store &&
+             pnpm install --frozen-lockfile &&
+             pnpm --filter @dtc/storefront dev"
+
+  chatbot-service:
+    build:
+      context: ./chatbot-service
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      MEDUSA_BASE_URL: http://backend:9000
+      MEDUSA_PUBLISHABLE_API_KEY: pk_0e7b15b6af66ec0cc488b8c17cdf2b0020ad203653949c239d686790d670f819
+      MEDUSA_REGION_COUNTRY_CODE: vn
+      MEDUSA_TIMEOUT_SECONDS: 8
+      STOREFRONT_BASE_URL: http://localhost:8000
+      STOREFRONT_COUNTRY_CODE: vn
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-true}
+      GEMINI_TIMEOUT_SECONDS: 10
+      ENVIRONMENT: development
+    ports:
+      - "8080:8080"
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    depends_on:
+      chatbot-service:
+        condition: service_started
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Set NGROK_AUTHTOKEN in .env}
+    volumes:
+      - ./.ngrok.docker.yml:/etc/ngrok.yml:ro
+    command: ["start", "app", "--config", "/etc/ngrok.yml"]
+    ports:
+      - "4040:4040"
+
+volumes:
+  postgres_data:
+  redis_data:
+  root_node_modules:
+  backend_node_modules:
+  storefront_node_modules:
+  pnpm_store:

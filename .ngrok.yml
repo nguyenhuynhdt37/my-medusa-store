@@ -1,0 +1,7 @@
+version: 3
+
+tunnels:
+  app:
+    proto: http
+    addr: 8080
+    domain: gorgeous-squirrel-multiply.ngrok-free.app

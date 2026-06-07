@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="767" height="1616" version="1.1" viewBox="0 0 767 1616" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(0 493.48)">
+  <g>
+   <rect y="-52.48" width="40" height="115" rx="10" ry="10" fill="#393d46"/>
+   <rect y="137.52" width="40" height="205" rx="10" fill="#393d46"/>
+   <rect x="10" y="-487.98" width="752" height="1605.5" rx="120" ry="120" fill="#5e6060" stroke="#a9abab" stroke-width="10"/>
+  </g>
+  <g fill="none" stroke="#393d46" stroke-width="10">
+   <path d="m5-242.48h10"/>
+   <path d="m757-242.48h10"/>
+   <path d="m380-487.48h10"/>
+   <path d="m5 965.02h10"/>
+   <path d="m757 965.02h10"/>
+   <path d="m295 1117.5h10"/>
+  </g>
+  <g>
+   <rect x="37.5" y="-352.48" width="690" height="230" rx="120" ry="120" fill="#a9abab" stroke="#444" stroke-width="2"/>
+   <rect x="45" y="-344.98" width="525" height="215" rx="110" ry="110" fill="#111"/>
+   <path d="m384.3 241.42a69.3 69.3 0 0 0-69.3 69.3 69.3 69.3 0 0 0 69.3 69.3 69.3 69.3 0 0 0 69.3-69.3 69.3 69.3 0 0 0-1.7719-15.3h-67.528v30.6h35.536a38.7 38.7 0 0 1-35.536 23.4 38.7 38.7 0 0 1-38.7-38.7 38.7 38.7 0 0 1 38.7-38.7 38.7 38.7 0 0 1 26.121 10.202l21.656-21.656a69.3 69.3 0 0 0-47.777-19.146z" fill="#a9abab"/>
+  </g>
+  <g fill="#84f" fill-opacity=".13333">
+   <rect x="390.38" y="-280.17" width="70" height="90" rx="10" ry="10"/>
+   <circle cx="300.38" cy="-235.17" r="50"/>
+   <circle cx="142.88" cy="-235.17" r="35"/>
+  </g>
+  <circle cx="633.08" cy="-195.17" r="30" fill="#c9cfde" stroke="#000"/>
+  <g fill="#04f" fill-opacity=".26667">
+   <circle cx="425.38" cy="-235.17" r="30"/>
+   <circle cx="300.38" cy="-235.17" r="30"/>
+   <circle cx="142.88" cy="-235.17" r="20"/>
+  </g>
+  <circle cx="633.08" cy="-285.17" r="30" fill="#fff" stroke="#000"/>
+ </g>
+</svg>
