@@ -23,5 +23,17 @@ export default async function create_chat_presence_table({ container }: { contai
     );
   `)
 
+  // ensure unique constraint on (conversation_id, client_key)
+  await pg.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes WHERE tablename = 'chat_presence' AND indexname = 'uq_chat_presence_conversation_client'
+      ) THEN
+        CREATE UNIQUE INDEX uq_chat_presence_conversation_client ON chat_presence (conversation_id, client_key);
+      END IF;
+    END$$;
+  `)
+
   logger.info("chat_presence table ensured")
 }
