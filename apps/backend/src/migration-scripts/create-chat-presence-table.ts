@@ -17,7 +17,7 @@ export default async function create_chat_presence_table({ container }: { contai
       name text,
       online boolean DEFAULT false,
       last_seen_at timestamptz,
-      conversation_id uuid REFERENCES chat_conversation(id) ON DELETE CASCADE,
+      conversation_id text REFERENCES chat_conversation(id) ON DELETE CASCADE,
       created_at timestamptz DEFAULT now(),
       updated_at timestamptz DEFAULT now()
     );
