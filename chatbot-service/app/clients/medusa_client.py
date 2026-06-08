@@ -62,7 +62,10 @@ class MedusaClient:
         if self.publishable_api_key:
             headers["x-publishable-api-key"] = self.publishable_api_key
 
-        params: dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {
+            "limit": limit,
+            "fields": "*variants.calculated_price,+metadata,*tags,*type",
+        }
         if query:
             params["q"] = query
         region_id = await self.get_region_id()

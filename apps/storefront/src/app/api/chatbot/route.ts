@@ -1,5 +1,4 @@
-import { SessionsClient } from "@google-cloud/dialogflow-cx"
-import { existsSync } from "fs"
+import { LexRuntimeV2Client, RecognizeTextCommand } from "@aws-sdk/client-lex-runtime-v2"
 import { cookies } from "next/headers"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -15,53 +14,42 @@ type ChatbotPayload = {
   payload?: Record<string, unknown>
 }
 
-const projectId = process.env.DIALOGFLOW_PROJECT_ID
-const agentId = process.env.DIALOGFLOW_AGENT_ID
-const location = process.env.DIALOGFLOW_LOCATION || "global"
-const languageCode = process.env.DIALOGFLOW_LANGUAGE_CODE || "vi"
+const lexClient = new LexRuntimeV2Client({
+  region: process.env.AWS_REGION || "us-east-1",
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+  },
+})
 
-const getClient = () => {
-  const options =
-    location && location !== "global"
-      ? { apiEndpoint: `${location}-dialogflow.googleapis.com` }
-      : undefined
-
-  return new SessionsClient(options)
-}
-
-const getTextFromResponseMessage = (message: any): string | null => {
-  const text = message?.text?.text
-  if (Array.isArray(text)) {
-    return text.filter(Boolean).join("\n")
-  }
-  return null
-}
+const botId = process.env.LEX_BOT_ID
+const botAliasId = process.env.LEX_BOT_ALIAS_ID
+const localeId = process.env.LEX_LOCALE_ID || "vi_VN"
 
 const normalizeResponseMessages = (messages: any[] = []): ChatbotPayload[] => {
   const normalized: ChatbotPayload[] = []
   let pendingText = ""
 
   for (const message of messages) {
-    const text = getTextFromResponseMessage(message)
-    if (text) {
-      pendingText = pendingText ? `${pendingText}\n${text}` : text
-      continue
-    }
-
-    if (message?.payload) {
-      normalized.push({
-        text: pendingText,
-        payload: message.payload,
-      })
-      pendingText = ""
+    if (message.contentType === "PlainText") {
+      pendingText = pendingText ? `${pendingText}\n${message.content}` : message.content
+    } else if (message.contentType === "CustomPayload") {
+      try {
+        const payload = JSON.parse(message.content)
+        normalized.push({
+          text: pendingText,
+          payload: payload,
+        })
+        pendingText = ""
+      } catch (e) {
+        console.error("Failed to parse custom payload", e)
+      }
     }
   }
 
   if (pendingText || !normalized.length) {
     normalized.push({
-      text:
-        pendingText ||
-        "Mình chưa nhận được phản hồi phù hợp. Bạn thử hỏi lại giúp mình nhé.",
+      text: pendingText || "Mình chưa nhận được phản hồi phù hợp. Bạn thử hỏi lại giúp mình nhé.",
     })
   }
 
@@ -69,9 +57,9 @@ const normalizeResponseMessages = (messages: any[] = []): ChatbotPayload[] => {
 }
 
 export async function POST(request: NextRequest) {
-  if (!projectId || !agentId) {
+  if (!botId || !botAliasId) {
     return NextResponse.json(
-      { error: "Dialogflow CX is not configured on the storefront server." },
+      { error: "AWS Lex is not configured on the storefront server. Please check .env.local" },
       { status: 500 }
     )
   }
@@ -83,58 +71,69 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Message is required." }, { status: 400 })
   }
 
-  const sessionId =
-    body.sessionId?.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) ||
-    crypto.randomUUID()
+  const sessionId = body.sessionId?.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || crypto.randomUUID()
   const cookieStore = await cookies()
   const customerToken = cookieStore.get("_medusa_jwt")?.value
 
-  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
-  if (credentialsPath && !existsSync(credentialsPath)) {
-    return NextResponse.json(
-      {
-        error:
-          "Thiếu file service account Dialogflow CX trên server. Route này không dùng fallback.",
-        detail: `Missing credentials file: ${credentialsPath}`,
+  const backendUrl = process.env.MEDUSA_BACKEND_URL || process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  
+  try {
+    await fetch(`${backendUrl}/store/chat`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
       },
-      { status: 500 }
-    )
+      body: JSON.stringify({
+        session_id: sessionId,
+        sender: "user",
+        text: message,
+      })
+    })
+  } catch (err) {
+    console.error("Failed to save user message", err)
   }
 
   try {
-    const client = getClient()
-    const session = client.projectLocationAgentSessionPath(
-      projectId,
-      location,
-      agentId,
-      sessionId
-    )
+    const params = {
+      botId,
+      botAliasId,
+      localeId,
+      sessionId,
+      text: message,
+      requestAttributes: customerToken ? {
+        Authorization: `Bearer ${customerToken}`,
+      } : undefined,
+    }
 
-    const [response] = await client.detectIntent({
-      session,
-      queryInput: {
-        text: {
-          text: message,
-        },
-        languageCode,
-      },
-      queryParams: {
-        webhookHeaders: customerToken
-          ? {
-              Authorization: `Bearer ${customerToken}`,
-            }
-          : undefined,
-      },
-    })
+    const command = new RecognizeTextCommand(params)
+    const response = await lexClient.send(command)
 
-    const queryResult = response.queryResult
-    const messages = normalizeResponseMessages(
-      queryResult?.responseMessages || []
-    )
+    const messages = normalizeResponseMessages(response.messages || [])
+
+    try {
+      for (const msg of messages) {
+        await fetch(`${backendUrl}/store/chat`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            sender: "bot",
+            text: msg.text,
+            payload: msg.payload || null,
+          })
+        })
+      }
+    } catch (err) {
+      console.error("Failed to save bot messages", err)
+    }
 
     return NextResponse.json({
       sessionId,
-      intent: queryResult?.intent?.displayName || "Fallback",
+      intent: response.sessionState?.intent?.name || "Fallback",
       messages,
     })
   } catch (error) {
@@ -142,8 +141,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        error:
-          "Không thể kết nối Dialogflow CX. Kiểm tra service account, IAM role và biến môi trường.",
+        error: "Không thể kết nối AWS Lex. Kiểm tra Access Key, Secret Key, và quyền IAM.",
         detail,
       },
       { status: 502 }

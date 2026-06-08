@@ -47,23 +47,58 @@ class GeminiClient:
         data = await self._generate_text(prompt)
         return data.strip() or draft_reply
 
-    async def _generate_text(self, prompt: str) -> str:
+    async def resolve_customer_intent(
+        self,
+        *,
+        lex_intent: str,
+        user_text: str | None,
+        session_parameters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not self.is_enabled():
+            return {}
+
+        prompt = build_intent_resolution_prompt(
+            lex_intent=lex_intent,
+            user_text=user_text,
+            session_parameters=session_parameters,
+        )
+        data = await self._generate_text(prompt, response_mime_type="application/json", max_output_tokens=400)
+        try:
+            parsed = json.loads(strip_json_code_fence(data))
+        except json.JSONDecodeError as exc:
+            raise GeminiAPIError(f"Gemini returned invalid intent JSON: {data}") from exc
+        return parsed if isinstance(parsed, dict) else {}
+
+    async def _generate_text(
+        self,
+        prompt: str,
+        *,
+        response_mime_type: str = "text/plain",
+        max_output_tokens: int = 1200,
+    ) -> str:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        system_text = (
+            "You are a Vietnamese ecommerce customer-support copywriter for a fashion storefront. "
+            "Rewrite only the final customer-facing answer into polished Vietnamese. "
+            "Use Markdown with clear spacing, short bullets, bold labels, and a friendly call to action when useful. "
+            "Do not simply copy the draft; improve its wording, flow, and scanability. "
+            "Use the provided facts exactly. Do not invent prices, discounts, URLs, order status, stock, shipping, sizes, colors, or policies. "
+            "Preserve Markdown links, image Markdown, product names, order codes, numbers, currencies, and URLs exactly. "
+            "For product list or recommendation responses, do not add Markdown links in the text; links are shown through the custom payload cards. "
+            "Do not add greetings unless the intent is greeting or human handover. "
+            "Return only the rewritten answer, without explanations."
+        )
+        if response_mime_type == "application/json":
+            system_text = (
+                "You are a strict Vietnamese ecommerce NLU classifier. "
+                "Return only valid JSON. Do not write customer-facing prose."
+            )
+
         body = {
             "system_instruction": {
                 "parts": [
                     {
-                        "text": (
-                            "You are a Vietnamese ecommerce customer-support copywriter for a fashion storefront. "
-                            "Rewrite only the final customer-facing answer into polished Vietnamese. "
-                            "Use Markdown with clear spacing, short bullets, bold labels, and a friendly call to action when useful. "
-                            "Do not simply copy the draft; improve its wording, flow, and scanability. "
-                            "Use the provided facts exactly. Do not invent prices, discounts, URLs, order status, stock, shipping, sizes, colors, or policies. "
-                            "Preserve Markdown links, image Markdown, product names, order codes, numbers, currencies, and URLs exactly. "
-                            "For product list or recommendation responses, do not add Markdown links in the text; links are shown through the custom payload cards. "
-                            "Do not add greetings unless the intent is greeting or human handover. "
-                            "Return only the rewritten answer, without explanations."
-                        )
+                        "text": system_text
                     }
                 ]
             },
@@ -76,8 +111,8 @@ class GeminiClient:
             "generationConfig": {
                 "temperature": 0.35,
                 "topP": 0.9,
-                "maxOutputTokens": 1200,
-                "responseMimeType": "text/plain",
+                "maxOutputTokens": max_output_tokens,
+                "responseMimeType": response_mime_type,
                 "thinkingConfig": {
                     "thinkingBudget": 0,
                 },
@@ -135,6 +170,51 @@ def build_rewrite_prompt(
         "- Keep it concise; avoid long explanations.\n\n"
         f"{json.dumps(facts, ensure_ascii=False, default=str)}"
     )
+
+
+def build_intent_resolution_prompt(
+    *,
+    lex_intent: str,
+    user_text: str | None,
+    session_parameters: dict[str, Any] | None,
+) -> str:
+    facts = {
+        "lex_intent": lex_intent,
+        "user_text": user_text,
+        "session_parameters": session_parameters or {},
+        "allowed_intents": [
+            "greeting",
+            "product_search",
+            "product_price",
+            "product_recommendation",
+            "bonus",
+            "inventory",
+            "product_compare",
+            "warranty_policy",
+            "shipping_policy",
+            "order_tracking",
+            "order_list",
+            "human_handover",
+            "fallback",
+        ],
+    }
+    return (
+        "Resolve the Vietnamese ecommerce customer message into structured JSON only.\n"
+        "Use session context to fill missing entities for short follow-up questions.\n"
+        "Do not answer the customer. Do not invent product names unless they are present in session context or user text.\n"
+        "Return exactly this JSON shape:\n"
+        '{"intent":"one_allowed_intent","product_name":null,"product_b_name":null,"order_code":null,"confidence":0.0}\n\n'
+        f"{json.dumps(facts, ensure_ascii=False, default=str)}"
+    )
+
+
+def strip_json_code_fence(value: str) -> str:
+    stripped = value.strip()
+    if stripped.startswith("```"):
+        stripped = stripped.strip("`")
+        if stripped.lower().startswith("json"):
+            stripped = stripped[4:]
+    return stripped.strip()
 
 
 def get_gemini_client() -> GeminiClient:

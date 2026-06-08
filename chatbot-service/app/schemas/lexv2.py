@@ -31,15 +31,22 @@ class LexV2Request(BaseModel):
         return parameters
 
     def to_dialogflow_request(self) -> DialogflowCXRequest:
+        session_attributes = self.session_state.get("sessionAttributes") or {}
+        parameters = {
+            key: {"resolvedValue": value}
+            for key, value in session_attributes.items()
+        }
+        parameters.update(
+            {
+                key: {"resolvedValue": value}
+                for key, value in self.slot_parameters().items()
+            }
+        )
+
         return DialogflowCXRequest.model_validate(
             {
                 "intentInfo": {"displayName": self.intent_name()},
-                "sessionInfo": {
-                    "parameters": {
-                        key: {"resolvedValue": value}
-                        for key, value in self.slot_parameters().items()
-                    }
-                },
+                "sessionInfo": {"parameters": parameters},
                 "text": self.input_transcript,
             }
         )

@@ -70,6 +70,26 @@ Values:
 
 ## Intents
 
+### GreetingIntent
+Purpose: chào hỏi bot.
+
+Slots:
+- Không có slot
+
+Sample utterances:
+- xin chào
+- hello
+- hi
+- chào shop
+- bot ơi
+
+Response:
+Sẽ chọn ngẫu nhiên một trong các câu chào:
+- `Xin chào! Mình là Medusan, trợ lý ảo của shop. Mình có thể giúp gì cho bạn hôm nay?`
+- `Chào bạn, mình là Medusan. Bạn đang cần tìm điện thoại hay kiểm tra đơn hàng ạ?`
+- `Medusan xin chào! Bạn cần hỗ trợ tư vấn sản phẩm hay hỏi về khuyến mãi không?`
+- `Hi bạn, mình là trợ lý Medusan. Mình có thể hỗ trợ bạn tra giá, kiểm tra tồn kho hoặc trạng thái đơn hàng nhé!`
+
 ### ProductSearchIntent
 Purpose: tìm sản phẩm theo tên, hãng, nhu cầu, hoặc ngân sách.
 
@@ -325,6 +345,7 @@ Response:
 
 ## Fulfillment Mapping
 
+- `GreetingIntent` -> call chatbot fulfillment and answer with default greeting.
 - `ProductSearchIntent` -> call `/store/products` with query, brand, tags, or category.
 - `ProductPriceIntent` -> call `/store/products`, read variants and calculated prices.
 - `ProductRecommendationIntent` -> rank products by metadata `sold_count`, `rating`, `promo_hint`, and tags.

@@ -40,9 +40,18 @@ class FakeMedusaClient:
             {
                 "title": "Oversized Hoodie",
                 "handle": "oversized-hoodie",
-                "metadata": {"warranty_months": 12},
+                "metadata": {
+                    "warranty_months": 12,
+                    "chip": "A18",
+                    "camera": "48MP main camera",
+                    "battery": "pin tốt",
+                    "sold_count": 188,
+                    "rating": 4.8,
+                },
                 "variants": [
                     {
+                        "title": "M / Black",
+                        "manage_inventory": True,
                         "calculated_price": {
                             "calculated_amount": 299000,
                             "currency_code": "vnd",
@@ -53,9 +62,18 @@ class FakeMedusaClient:
             {
                 "title": "Premium Jacket",
                 "handle": "premium-jacket",
-                "metadata": {"warranty_months": 12},
+                "metadata": {
+                    "warranty_months": 12,
+                    "chip": "Snapdragon 8 Elite",
+                    "camera": "Ultra zoom camera",
+                    "charging": "fast charging",
+                    "sold_count": 95,
+                    "rating": 4.7,
+                },
                 "variants": [
                     {
+                        "title": "L / Blue",
+                        "manage_inventory": True,
                         "calculated_price": {
                             "calculated_amount": 999000,
                             "currency_code": "vnd",
@@ -128,6 +146,22 @@ async def test_product_price_response():
 
 
 @pytest.mark.asyncio
+async def test_product_price_followup_uses_current_product_context():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "ProductPrice",
+            {"current_product_name": "Oversized Hoodie"},
+            text="giá bao nhiêu",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Oversized Hoodie" in message
+    assert "299.000 VNĐ" in message
+
+
+@pytest.mark.asyncio
 async def test_product_price_extracts_product_from_text_when_parameter_missing():
     service = IntentService(FakeMedusaClient())
     response = await service.handle(make_request("ProductPrice", {}, text="Giá Vintage Shorts bao nhiêu"))
@@ -157,6 +191,28 @@ async def test_order_tracking_requires_login():
 
     message = response.fulfillment_response.messages[0].text.text[0]
     assert "cần đăng nhập" in message
+
+
+@pytest.mark.asyncio
+async def test_order_status_intent_maps_to_order_tracking():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(
+        make_request("OrderStatusIntent", {"order_id": "ORD-1001"}),
+        authorization_header="Bearer test-token",
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "ORD-1001" in message
+    assert response.session_info.parameters["search_status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_order_status_misclassification_without_order_text_falls_back():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(make_request("OrderStatusIntent", {}, text="asdf qwer zxcv không hiểu gì"))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Mình chưa hiểu yêu cầu" in message
 
 
 @pytest.mark.asyncio
@@ -200,6 +256,104 @@ async def test_bonus_without_promotions_response():
 
 
 @pytest.mark.asyncio
+async def test_promotion_code_response():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(make_request("PromotionIntent", {"promo_code": "FREESHIP"}))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "FREESHIP" in message
+    assert "120.000 VNĐ" in message
+    assert response.session_info.parameters["search_status"] == "promotion_success"
+
+
+@pytest.mark.asyncio
+async def test_product_promotion_followup_uses_current_product_context():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "PromotionIntent",
+            {"current_product_name": "Oversized Hoodie"},
+            text="có giảm giá không",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "chưa thấy chương trình khuyến mãi" in message
+    assert response.session_info.parameters["current_product_name"] == "Oversized Hoodie"
+
+
+@pytest.mark.asyncio
+async def test_generic_promotion_response_lists_available_codes():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(make_request("PromotionIntent", {}, text="shop có mã giảm giá không"))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "WELCOME10" in message
+    assert "FREESHIP" in message
+    assert response.session_info.parameters["search_status"] == "promotion_codes_available"
+
+
+@pytest.mark.asyncio
+async def test_inventory_intent_response():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(make_request("InventoryIntent", {"product_name": "hoodie"}))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Oversized Hoodie" in message
+    assert "có hàng" in message
+    assert response.session_info.parameters["inventory_status"] == "in_stock"
+
+
+@pytest.mark.asyncio
+async def test_inventory_followup_uses_current_product_context():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "InventoryIntent",
+            {"current_product_name": "Oversized Hoodie"},
+            text="còn hàng không",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Oversized Hoodie" in message
+    assert "có hàng" in message
+
+
+@pytest.mark.asyncio
+async def test_warranty_followup_uses_current_product_context():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "WarrantyPolicyIntent",
+            {"current_product_name": "Oversized Hoodie"},
+            text="bảo hành bao lâu",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Oversized Hoodie" in message
+    assert "12 tháng" in message
+
+
+@pytest.mark.asyncio
+async def test_product_compare_intent_response():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "ProductCompareIntent",
+            {"product_a": "hoodie", "product_b": "premium jacket"},
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "So sánh nhanh" in message
+    assert "Oversized Hoodie" in message
+    assert "Premium Jacket" in message
+    assert response.session_info.parameters["search_status"] == "compare_success"
+
+
+@pytest.mark.asyncio
 async def test_top_expensive_products_from_text():
     service = IntentService(FakeMedusaClient())
     response = await service.handle(make_request("ProductPrice", {}, text="top 5 sản phẩm giá cao nhất"))
@@ -227,7 +381,7 @@ async def test_promotion_text_overrides_fallback_intent():
 
     message = response.fulfillment_response.messages[0].text.text[0]
     assert "khuyến mãi" in message
-    assert response.session_info.parameters["search_status"] == "promotion_not_found"
+    assert response.session_info.parameters["search_status"] == "promotion_codes_available"
 
 
 @pytest.mark.asyncio
@@ -274,6 +428,16 @@ async def test_human_handover_response():
     message = response.fulfillment_response.messages[0].text.text[0]
     assert "nhân viên hỗ trợ" in message
     assert response.session_info.parameters["handover_requested"] is True
+
+
+@pytest.mark.asyncio
+async def test_human_handover_text_overrides_recommendation_keywords():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(make_request("HumanHandoffIntent", {}, text="cho tôi gặp tư vấn viên"))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "nhân viên hỗ trợ" in message
+    assert response.session_info.parameters["search_status"] == "human_handover"
 
 
 @pytest.mark.asyncio
