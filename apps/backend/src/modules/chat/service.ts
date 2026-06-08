@@ -1,10 +1,12 @@
 import { MedusaService } from "@medusajs/framework/utils"
-import { ChatSession } from "./models/chat-session"
+import { ChatConversation } from "./models/chat-conversation"
 import { ChatMessage } from "./models/chat-message"
+import { ChatPresence } from "./models/chat-presence"
 
 class ChatService extends MedusaService({
-  ChatSession,
+  ChatConversation,
   ChatMessage,
-}) {}
+  ChatPresence,
+}) { }
 
 export default ChatService

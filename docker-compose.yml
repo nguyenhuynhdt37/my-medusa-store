@@ -39,6 +39,8 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/ecomoi
       REDIS_URL: redis://redis:6379
       JWT_SECRET: supersecret
@@ -60,8 +62,10 @@ services:
       - pnpm_store:/pnpm/store
     command: >
       sh -c "corepack enable &&
+             ln -sfn /app/apps /apps &&
              pnpm config set store-dir /pnpm/store &&
              pnpm install --frozen-lockfile &&
+             rm -rf apps/backend/node_modules/.vite apps/backend/.medusa/client apps/backend/.medusa/server apps/backend/.medusa/admin &&
              pnpm --filter @dtc/backend exec medusa db:migrate --execute-safe-links &&
              pnpm --filter @dtc/backend dev"
 
@@ -73,6 +77,8 @@ services:
         condition: service_started
     environment:
       NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
       MEDUSA_BACKEND_URL: http://backend:9000
       NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_0e7b15b6af66ec0cc488b8c17cdf2b0020ad203653949c239d686790d670f819

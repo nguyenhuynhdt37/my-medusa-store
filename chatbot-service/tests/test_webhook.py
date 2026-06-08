@@ -6,17 +6,23 @@ from app.main import app
 def test_greeting_webhook():
     client = TestClient(app)
     response = client.post(
-        "/webhook",
+        "/lexv2/webhook",
         json={
-            "intentInfo": {"displayName": "Greeting"},
-            "sessionInfo": {"parameters": {}},
+            "sessionState": {
+                "intent": {
+                    "name": "Greeting",
+                    "slots": {},
+                }
+            },
+            "inputTranscript": "hello",
         },
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert "fulfillmentResponse" in body
-    message = body["fulfillmentResponse"]["messages"][0]["text"]["text"][0]
+    assert body["sessionState"]["dialogAction"]["type"] == "Close"
+    assert body["sessionState"]["intent"]["state"] == "Fulfilled"
+    message = body["messages"][0]["content"]
     assert "hỗ trợ" in message or "giúp" in message
 
 

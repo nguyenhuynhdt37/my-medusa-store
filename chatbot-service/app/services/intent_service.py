@@ -14,10 +14,17 @@ from app.core.exceptions import (
     MedusaAPIError,
     MedusaTimeoutError,
     OrderNotFoundError,
+    MissingOrderCodeError,
     ProductNotFoundError,
 )
-from app.schemas.dialogflow import DialogflowCXRequest, DialogflowCXResponse, DialogflowParameterValue, SessionInfo
-from app.services.dialogflow_response import rich_response, text_response
+from app.schemas.lexv2 import (
+    DialogflowCXRequest,
+    DialogflowCXResponse,
+    DialogflowParameterValue,
+    SessionInfo,
+    rich_response,
+    text_response,
+)
 
 
 class IntentService:
@@ -119,6 +126,11 @@ class IntentService:
                 "Mình chưa tìm thấy sản phẩm phù hợp. Bạn có thể nhập tên sản phẩm cụ thể hơn không?",
                 {"search_status": "product_not_found"},
             )
+        except MissingOrderCodeError:
+            response = text_response(
+                "Bạn vui lòng cung cấp mã đơn hàng (ví dụ: mã số trên email) để mình kiểm tra tình trạng giúp bạn nhé.",
+                {"search_status": "missing_order_code"},
+            )
         except OrderNotFoundError:
             response = text_response(
                 "Mình chưa tìm thấy đơn hàng này. Bạn kiểm tra lại mã đơn hàng giúp mình nhé.",
@@ -140,6 +152,9 @@ class IntentService:
                     "Mình chưa thể kết nối hệ thống bán hàng lúc này. Bạn vui lòng thử lại sau.",
                     {"search_status": "medusa_api_error"},
                 )
+
+        response.session_info.parameters["resolved_intent"] = text_intent or "fallback"
+        response.session_info.parameters["ai_confidence"] = 0.5 if (text_intent == "fallback" or not text_intent) else 1.0
 
         return await self._finalize_response(request, intent, response)
 
@@ -215,6 +230,12 @@ class IntentService:
         response: DialogflowCXResponse,
     ) -> DialogflowCXResponse:
         merge_session_parameters(request, response)
+
+        lex_intent_name = "FallbackIntent"
+        if request.session_state.get("intent") and request.session_state["intent"].get("name"):
+            lex_intent_name = request.session_state["intent"]["name"]
+        
+        response.sessionState.intent.name = lex_intent_name
 
         if not self.gemini_client or not self.gemini_client.is_enabled():
             return response
@@ -563,16 +584,58 @@ class IntentService:
         authorization_header: str | None = None,
     ) -> DialogflowCXResponse:
         order_code = request.get_parameter(self.ORDER_PARAMETER_NAMES)
+        
         if not order_code:
-            raise OrderNotFoundError()
+            customer_access_token = authorization_header or request.get_parameter(self.CUSTOMER_TOKEN_PARAMETER_NAMES)
+            if not customer_access_token:
+                raise AuthenticationRequiredError()
+                
+            orders = await self.medusa_client.list_customer_orders(customer_access_token=customer_access_token, limit=10)
+            
+            active_orders = []
+            for o in orders:
+                fulfillment_status = o.get("fulfillment_status", "not_fulfilled")
+                status = o.get("status", "pending")
+                if status not in ["completed", "canceled", "archived"] and fulfillment_status not in ["delivered", "canceled"]:
+                    active_orders.append(o)
+            
+            if not active_orders:
+                return text_response(
+                    "Hiện tại bạn không có đơn hàng nào đang trong quá trình giao.",
+                    {"search_status": "success"}
+                )
+                
+            if len(active_orders) == 1:
+                order = active_orders[0]
+                status_text = self._humanize_order_status(order)
+                display_code = self._display_order_code(order, str(order.get("id") or "đơn hàng"))
+                return text_response(
+                    f"Đơn hàng {display_code} hiện {status_text}.",
+                    {
+                        "current_order_code": display_code,
+                        "current_order_status": status_text,
+                        "search_status": "success",
+                    },
+                )
+                
+            lines = ["Bạn có các đơn hàng đang giao sau đây:", ""]
+            for o in active_orders:
+                display_code = self._display_order_code(o, str(o.get("id") or "đơn hàng"))
+                status_text = self._humanize_order_status(o)
+                total = o.get("total")
+                currency = o.get("currency_code")
+                total_text = format_money(total, currency) if total is not None and currency else "Chưa cập nhật"
+                lines.append(f"- **{display_code}**: {status_text}, tổng tiền {total_text}")
+                
+            return text_response(
+                "\n".join(lines),
+                {"search_status": "success", "order_count": len(active_orders)}
+            )
 
-        customer_access_token = authorization_header or request.get_parameter(self.CUSTOMER_TOKEN_PARAMETER_NAMES)
-        if not customer_access_token:
-            raise AuthenticationRequiredError()
-
-        order = await self.medusa_client.find_customer_order(order_code, customer_access_token=customer_access_token)
-        if not order:
-            raise OrderNotFoundError()
+        order = await self._load_customer_order(request, authorization_header)
+        order_code = str(order.get("id") or "đơn hàng")
+        if request.get_parameter(self.ORDER_PARAMETER_NAMES):
+            order_code = request.get_parameter(self.ORDER_PARAMETER_NAMES)
 
         status = self._humanize_order_status(order)
         display_code = self._display_order_code(order, order_code)
@@ -623,10 +686,11 @@ class IntentService:
         authorization_header: str | None = None,
     ) -> dict[str, Any]:
         order_code = request.get_parameter(self.ORDER_PARAMETER_NAMES)
-        if not order_code:
-            raise OrderNotFoundError()
-
         customer_access_token = authorization_header or request.get_parameter(self.CUSTOMER_TOKEN_PARAMETER_NAMES)
+
+        if not order_code:
+            raise MissingOrderCodeError()
+
         if not customer_access_token:
             raise AuthenticationRequiredError()
 
@@ -956,9 +1020,6 @@ class IntentService:
         )
 
     def _product_has_promotion(self, product: dict[str, Any]) -> bool:
-        metadata = product.get("metadata") or {}
-        if metadata.get("promo_hint"):
-            return True
         return any(has_discount(price) for price in self._extract_variant_prices(product))
 
     @staticmethod
@@ -1426,11 +1487,6 @@ def build_discount_text(prices: list[dict[str, Any]]) -> str:
 
 
 def product_promotion_hint(product: dict[str, Any]) -> str:
-    metadata = product.get("metadata") or {}
-    promo_hint = metadata.get("promo_hint")
-    if promo_hint:
-        return str(promo_hint).upper()
-
     prices = []
     for variant in product.get("variants", []) or []:
         calculated_price = variant.get("calculated_price") or {}
@@ -1439,6 +1495,12 @@ def product_promotion_hint(product: dict[str, Any]) -> str:
         currency = calculated_price.get("currency_code")
         if amount is not None and original_amount is not None and currency:
             prices.append({"amount": amount, "original_amount": original_amount, "currency": currency})
+
+    metadata = product.get("metadata") or {}
+    promo_hint = metadata.get("promo_hint")
+    if promo_hint and not prices:
+        return "Chưa có chương trình khuyến mãi"
+
     return build_discount_text(prices)
 
 

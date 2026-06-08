@@ -13,9 +13,10 @@
     "medusa"
   ],
   "scripts": {
-    "build": "medusa build",
+    "clean:admin-cache": "rm -rf node_modules/.vite .medusa/client .medusa/server .medusa/admin",
+    "build": "pnpm run clean:admin-cache && medusa build",
     "start": "medusa start",
-    "dev": "medusa develop",
+    "dev": "pnpm run clean:admin-cache && medusa develop",
     "seed": "medusa exec ./src/migration-scripts/initial-data-seed.ts",
     "seed:context": "medusa exec ./src/migration-scripts/enrich-demo-data.ts",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",
@@ -31,10 +32,13 @@
     "@medusajs/draft-order": "2.15.3",
     "@medusajs/framework": "2.15.3",
     "@medusajs/medusa": "2.15.3",
-    "@tanstack/react-query": "5.64.2",
-    "react-router-dom": "6.30.3",
-    "react-i18next": "13.5.0",
     "@medusajs/ui": "4.1.13",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tanstack/react-query": "5.64.2",
+    "lucide-react": "^1.17.0",
+    "react-i18next": "13.5.0",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "6.30.3",
     "zod": "4.2.0"
   },
   "devDependencies": {
@@ -57,5 +61,5 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "npm@11.12.1"
+  "packageManager": "pnpm@10.33.2"
 }

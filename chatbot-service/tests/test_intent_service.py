@@ -1,6 +1,6 @@
 import pytest
 
-from app.schemas.dialogflow import DialogflowCXRequest
+from app.schemas.lexv2 import LexV2Request
 from app.services.intent_service import IntentService
 
 
@@ -119,16 +119,17 @@ class FakeGeminiClient:
 
 
 def make_request(intent: str, parameters: dict, text: str | None = None):
-    return DialogflowCXRequest.model_validate(
-        {
-            "intentInfo": {"displayName": intent},
-            "sessionInfo": {
-                "parameters": {
-                    key: {"resolvedValue": value}
-                    for key, value in parameters.items()
+    return LexV2Request(
+        inputTranscript=text,
+        sessionState={
+            "intent": {
+                "name": intent,
+                "slots": {
+                    name: {"value": {"interpretedValue": val}}
+                    for name, val in parameters.items()
                 }
             },
-            "text": text,
+            "sessionAttributes": parameters.copy()
         }
     )
 

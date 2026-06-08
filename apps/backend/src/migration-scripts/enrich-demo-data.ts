@@ -1,4 +1,5 @@
 import { MedusaContainer } from "@medusajs/framework";
+import { CreatePromotionDTO } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import {
   createCustomerAddressesWorkflow,
@@ -285,7 +286,7 @@ const productContext: Record<
   },
 };
 
-const promotions = [
+const promotions: CreatePromotionDTO[] = [
   {
     code: "WELCOME10",
     type: "standard",

@@ -22,13 +22,13 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "session_id": {
-          "name": "session_id",
+        "customer_id": {
+          "name": "customer_id",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "unique": false,
           "length": null,
           "precision": null,
@@ -38,8 +38,40 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "customer_id": {
-          "name": "customer_id",
+        "guest_id": {
+          "name": "guest_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "customer_name": {
+          "name": "customer_name",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "customer_email": {
+          "name": "customer_email",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -65,13 +97,46 @@
           "length": null,
           "precision": null,
           "scale": null,
-          "default": "'bot_active'",
+          "default": "'bot'",
           "comment": null,
           "enumItems": [
-            "bot_active",
-            "human_active"
+            "bot",
+            "human",
+            "closed"
           ],
           "mappedType": "enum"
+        },
+        "assigned_admin_id": {
+          "name": "assigned_admin_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "last_message_at": {
+          "name": "last_message_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "datetime"
         },
         "created_at": {
           "name": "created_at",
@@ -122,29 +187,20 @@
           "mappedType": "datetime"
         }
       },
-      "name": "chat_session",
+      "name": "chat_conversation",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_chat_session_session_id_unique",
+          "keyName": "IDX_chat_conversation_deleted_at",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_chat_session_session_id_unique\" ON \"chat_session\" (\"session_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_chat_conversation_deleted_at\" ON \"chat_conversation\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_chat_session_deleted_at",
-          "columnNames": [],
-          "composite": false,
-          "constraint": false,
-          "primary": false,
-          "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_chat_session_deleted_at\" ON \"chat_session\" (\"deleted_at\") WHERE deleted_at IS NULL"
-        },
-        {
-          "keyName": "chat_session_pkey",
+          "keyName": "chat_conversation_pkey",
           "columnNames": [
             "id"
           ],
@@ -176,8 +232,8 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "sender": {
-          "name": "sender",
+        "sender_type": {
+          "name": "sender_type",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -190,14 +246,31 @@
           "default": null,
           "comment": null,
           "enumItems": [
-            "user",
+            "customer",
+            "guest",
             "bot",
-            "human"
+            "admin"
           ],
           "mappedType": "enum"
         },
-        "text": {
-          "name": "text",
+        "sender_id": {
+          "name": "sender_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "content": {
+          "name": "content",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -212,8 +285,8 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "payload": {
-          "name": "payload",
+        "metadata": {
+          "name": "metadata",
           "type": "jsonb",
           "unsigned": false,
           "autoincrement": false,
@@ -228,8 +301,8 @@
           "enumItems": [],
           "mappedType": "json"
         },
-        "session_id": {
-          "name": "session_id",
+        "conversation_id": {
+          "name": "conversation_id",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -297,13 +370,13 @@
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_chat_message_session_id",
+          "keyName": "IDX_chat_message_conversation_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_chat_message_session_id\" ON \"chat_message\" (\"session_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_chat_message_conversation_id\" ON \"chat_message\" (\"conversation_id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "IDX_chat_message_deleted_at",
@@ -327,16 +400,16 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "chat_message_session_id_foreign": {
-          "constraintName": "chat_message_session_id_foreign",
+        "chat_message_conversation_id_foreign": {
+          "constraintName": "chat_message_conversation_id_foreign",
           "columnNames": [
-            "session_id"
+            "conversation_id"
           ],
           "localTableName": "public.chat_message",
           "referencedColumnNames": [
             "id"
           ],
-          "referencedTableName": "public.chat_session",
+          "referencedTableName": "public.chat_conversation",
           "updateRule": "cascade"
         }
       },

@@ -10,6 +10,10 @@ class OrderNotFoundError(ChatbotServiceError):
     pass
 
 
+class MissingOrderCodeError(ChatbotServiceError):
+    pass
+
+
 class AuthenticationRequiredError(ChatbotServiceError):
     pass
 
