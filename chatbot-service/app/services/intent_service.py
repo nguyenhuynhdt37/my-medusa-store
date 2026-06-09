@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import random
 import re
+import unicodedata
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -25,6 +26,7 @@ from app.schemas.lexv2 import (
     rich_response,
     text_response,
 )
+from app.services.ai_usage_service import cost_context_from_request_attributes, record_gemini_usage
 
 
 class IntentService:
@@ -53,10 +55,14 @@ class IntentService:
         request: DialogflowCXRequest,
         authorization_header: str | None = None,
     ) -> DialogflowCXResponse:
+        cost_context = cost_context_from_request_attributes(
+            getattr(request, "request_attributes", None),
+            fallback_session_id=getattr(request, "session_id", None),
+        )
         intent = request.intent_name().lower()
         text_intent = infer_intent_from_text(request.text)
         if not text_intent:
-            text_intent = await self._resolve_intent_with_gemini(request, intent)
+            text_intent = await self._resolve_intent_with_gemini(request, intent, cost_context)
 
         try:
             if is_reset_intent(request.text):
@@ -156,7 +162,7 @@ class IntentService:
         response.session_info.parameters["resolved_intent"] = text_intent or "fallback"
         response.session_info.parameters["ai_confidence"] = 0.5 if (text_intent == "fallback" or not text_intent) else 1.0
 
-        return await self._finalize_response(request, intent, response)
+        return await self._finalize_response(request, intent, response, cost_context)
 
     async def greeting(self) -> DialogflowCXResponse:
         greetings = [
@@ -228,6 +234,7 @@ class IntentService:
         request: DialogflowCXRequest,
         intent: str,
         response: DialogflowCXResponse,
+        cost_context: dict[str, Any] | None = None,
     ) -> DialogflowCXResponse:
         merge_session_parameters(request, response)
 
@@ -245,13 +252,30 @@ class IntentService:
             return response
 
         try:
-            rewritten = await self.gemini_client.rewrite_customer_reply(
-                intent=intent,
-                user_text=request.text,
-                draft_reply=text_message,
-                session_parameters=response.session_info.parameters if response.session_info else None,
-                payload=first_payload(response),
-            )
+            if hasattr(self.gemini_client, "rewrite_customer_reply_with_usage"):
+                result = await self.gemini_client.rewrite_customer_reply_with_usage(
+                    intent=intent,
+                    user_text=request.text,
+                    draft_reply=text_message,
+                    session_parameters=response.session_info.parameters if response.session_info else None,
+                    payload=first_payload(response),
+                )
+                rewritten = result.text
+                await record_gemini_usage(
+                    cost_context=cost_context,
+                    operation="rewrite",
+                    model=getattr(self.gemini_client, "model", "gemini"),
+                    intent=response.session_info.parameters.get("resolved_intent") or intent,
+                    usage_metadata=result.usage_metadata,
+                )
+            else:
+                rewritten = await self.gemini_client.rewrite_customer_reply(
+                    intent=intent,
+                    user_text=request.text,
+                    draft_reply=text_message,
+                    session_parameters=response.session_info.parameters if response.session_info else None,
+                    payload=first_payload(response),
+                )
         except GeminiAPIError:
             return response
 
@@ -262,6 +286,7 @@ class IntentService:
         self,
         request: DialogflowCXRequest,
         lex_intent: str,
+        cost_context: dict[str, Any] | None = None,
     ) -> str | None:
         if (
             not self.gemini_client
@@ -271,11 +296,25 @@ class IntentService:
             return None
 
         try:
-            resolution = await self.gemini_client.resolve_customer_intent(
-                lex_intent=lex_intent,
-                user_text=request.text,
-                session_parameters=request_session_parameters(request),
-            )
+            if hasattr(self.gemini_client, "resolve_customer_intent_with_usage"):
+                resolution, usage_metadata = await self.gemini_client.resolve_customer_intent_with_usage(
+                    lex_intent=lex_intent,
+                    user_text=request.text,
+                    session_parameters=request_session_parameters(request),
+                )
+                await record_gemini_usage(
+                    cost_context=cost_context,
+                    operation="intent_resolution",
+                    model=getattr(self.gemini_client, "model", "gemini"),
+                    intent=normalize_resolved_intent(resolution.get("intent")) or lex_intent,
+                    usage_metadata=usage_metadata,
+                )
+            else:
+                resolution = await self.gemini_client.resolve_customer_intent(
+                    lex_intent=lex_intent,
+                    user_text=request.text,
+                    session_parameters=request_session_parameters(request),
+                )
         except GeminiAPIError:
             return None
 
@@ -1049,7 +1088,12 @@ class IntentService:
 
 
 def normalize_text(value: str) -> str:
-    return " ".join(value.lower().replace("-", " ").replace("_", " ").split())
+    lowered = value.lower().replace("đ", "d")
+    without_marks = "".join(
+        char for char in unicodedata.normalize("NFKD", lowered)
+        if not unicodedata.combining(char)
+    )
+    return " ".join(without_marks.replace("-", " ").replace("_", " ").split())
 
 
 def first_text_message(response: DialogflowCXResponse) -> str | None:

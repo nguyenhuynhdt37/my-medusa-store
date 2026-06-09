@@ -268,7 +268,7 @@ export const POST = async (
     await broadcastChatEvent(conversation.id, "chat.message.created", { ...botMessage, conversation_id: conversation.id }, notifyAdmin)
 
     if (channel === "MESSENGER" && externalUserId) {
-      await sendMessengerMessage(externalUserId, botMessage.content)
+      await sendMessengerMessage(externalUserId, botMessage.content, aiMessage.payload)
     }
   }
 

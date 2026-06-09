@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     medusa_region_id: str | None = None
     medusa_region_country_code: str = "dk"
     medusa_timeout_seconds: float = 8.0
+    database_url: str | None = None
+    chat_auto_migrate: bool = True
     redis_url: str | None = None
     aws_region: str = "us-east-1"
     aws_access_key_id: str | None = None
@@ -29,6 +31,7 @@ class Settings(BaseSettings):
     facebook_verify_token: str | None = None
     facebook_graph_version: str | None = None
     enable_human_handover: bool = True
+    enable_customer_resume_bot: bool = False
     human_handover_confidence_threshold: float = 0.65
     human_handover_ttl_seconds: int = 86400
     webhook_dedupe_ttl_seconds: int = 86400
@@ -39,6 +42,15 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     gemini_timeout_seconds: float = 10.0
     gemini_enabled: bool = True
+    ai_cost_tracking_enabled: bool = True
+    lex_text_request_price_usd: float = 0.00075
+    gemini_input_price_per_1m_tokens_usd: float = 0.30
+    gemini_output_price_per_1m_tokens_usd: float = 2.50
+    lambda_memory_size_mb: int = 128
+    lambda_request_price_per_1m_usd: float = 0.20
+    lambda_duration_price_per_gb_second_usd: float = 0.0000166667
+    ai_usage_snapshot_job_enabled: bool = True
+    ai_usage_snapshot_interval_seconds: int = 3600
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -111,6 +111,8 @@ class LexV2Request(BaseModel):
     session_state: dict[str, Any] = Field(default_factory=dict, alias="sessionState")
     input_transcript: str | None = Field(default=None, alias="inputTranscript")
     invocation_source: str | None = Field(default=None, alias="invocationSource")
+    session_id: str | None = Field(default=None, alias="sessionId")
+    request_attributes: dict[str, Any] = Field(default_factory=dict, alias="requestAttributes")
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 

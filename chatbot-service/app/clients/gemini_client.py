@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
 from app.core.config import settings
 from app.core.exceptions import GeminiAPIError
+
+
+@dataclass(frozen=True)
+class GeminiTextResult:
+    text: str
+    usage_metadata: dict[str, Any] | None = None
 
 
 class GeminiClient:
@@ -47,6 +54,28 @@ class GeminiClient:
         data = await self._generate_text(prompt)
         return data.strip() or draft_reply
 
+    async def rewrite_customer_reply_with_usage(
+        self,
+        *,
+        intent: str,
+        user_text: str | None,
+        draft_reply: str,
+        session_parameters: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> GeminiTextResult:
+        if not self.is_enabled():
+            return GeminiTextResult(text=draft_reply)
+
+        prompt = build_rewrite_prompt(
+            intent=intent,
+            user_text=user_text,
+            draft_reply=draft_reply,
+            session_parameters=session_parameters,
+            payload=payload,
+        )
+        result = await self._generate_text_with_usage(prompt)
+        return GeminiTextResult(text=result.text.strip() or draft_reply, usage_metadata=result.usage_metadata)
+
     async def resolve_customer_intent(
         self,
         *,
@@ -69,6 +98,32 @@ class GeminiClient:
             raise GeminiAPIError(f"Gemini returned invalid intent JSON: {data}") from exc
         return parsed if isinstance(parsed, dict) else {}
 
+    async def resolve_customer_intent_with_usage(
+        self,
+        *,
+        lex_intent: str,
+        user_text: str | None,
+        session_parameters: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+        if not self.is_enabled():
+            return {}, None
+
+        prompt = build_intent_resolution_prompt(
+            lex_intent=lex_intent,
+            user_text=user_text,
+            session_parameters=session_parameters,
+        )
+        result = await self._generate_text_with_usage(
+            prompt,
+            response_mime_type="application/json",
+            max_output_tokens=400,
+        )
+        try:
+            parsed = json.loads(strip_json_code_fence(result.text))
+        except json.JSONDecodeError as exc:
+            raise GeminiAPIError(f"Gemini returned invalid intent JSON: {result.text}") from exc
+        return parsed if isinstance(parsed, dict) else {}, result.usage_metadata
+
     async def _generate_text(
         self,
         prompt: str,
@@ -76,6 +131,20 @@ class GeminiClient:
         response_mime_type: str = "text/plain",
         max_output_tokens: int = 1200,
     ) -> str:
+        result = await self._generate_text_with_usage(
+            prompt,
+            response_mime_type=response_mime_type,
+            max_output_tokens=max_output_tokens,
+        )
+        return result.text
+
+    async def _generate_text_with_usage(
+        self,
+        prompt: str,
+        *,
+        response_mime_type: str = "text/plain",
+        max_output_tokens: int = 1200,
+    ) -> GeminiTextResult:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         system_text = (
             "You are a Vietnamese ecommerce customer-support copywriter for a fashion storefront. "
@@ -141,7 +210,7 @@ class GeminiClient:
         text = "".join(str(part.get("text", "")) for part in parts)
         if not text:
             raise GeminiAPIError("Gemini API returned an empty response")
-        return text
+        return GeminiTextResult(text=text, usage_metadata=data.get("usageMetadata"))
 
 
 def build_rewrite_prompt(

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.clients.lex_runtime import LexRuntimeClient, get_lex_runtime_client, normalize_lex_messages
+from app.services.ai_usage_service import record_lex_usage
 from app.services.escalation import should_escalate_to_admin
 
 router = APIRouter()
@@ -65,7 +66,15 @@ async def process_ai_request(
     response = await lex_client.recognize_text(
         session_id=session_id,
         text=text,
-        request_attributes={"Authorization": authorization} if authorization else None,
+        request_attributes={
+            **({"Authorization": authorization} if authorization else {}),
+            "conversation_id": body.conversation_id,
+            "customer_id": str(body.customer_context.get("customer_id") or ""),
+            "guest_id": str(body.customer_context.get("guest_id") or ""),
+            "external_user_id": str(external_user_id or ""),
+            "channel": channel,
+            "session_id": session_id,
+        },
     )
     session_state = response.get("sessionState") or {}
     session_attributes = session_state.get("sessionAttributes") or {}
@@ -83,6 +92,17 @@ async def process_ai_request(
         )
     except (TypeError, ValueError):
         confidence = None
+
+    await record_lex_usage(
+        conversation_id=body.conversation_id,
+        customer_id=str(body.customer_context.get("customer_id") or "") or None,
+        guest_id=str(body.customer_context.get("guest_id") or "") or None,
+        external_user_id=str(external_user_id or "") or None,
+        channel=channel,
+        intent=str(intent_name) if intent_name else None,
+        session_id=session_id,
+        request_count=1,
+    )
 
     failed_response_count = 1 if "fallback" in str(intent_name).lower() else 0
     escalation = should_escalate_to_admin(

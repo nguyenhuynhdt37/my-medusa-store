@@ -5,13 +5,15 @@ import hmac
 import json
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from app.core.config import settings
 from app.schemas.facebook import FacebookMessagingEvent, FacebookWebhookPayload
+from app.services.chat_constants import HANDOVER_MESSAGE, RESUME_BOT_MESSAGE
 
 
-HANDOVER_MESSAGE = "Em chưa chắc về thông tin này. Anh/chị vui lòng chờ trong giây lát, quản trị viên sẽ hỗ trợ trực tiếp."
+ADMIN_RESUME_COMMANDS = {"#bot", "/bot"}
+CUSTOMER_RESUME_COMMANDS = {"#bot", "/bot", "bot ơi", "bot oi", "gọi bot", "goi bot"}
 
 
 @dataclass(frozen=True)
@@ -23,38 +25,33 @@ class MessengerTextMessage:
     timestamp: int | None = None
 
 
-class InMemoryFacebookStateStore:
-    def __init__(self) -> None:
-        self._processed_messages: dict[str, float] = {}
-        self._human_mode: dict[str, float] = {}
+@dataclass(frozen=True)
+class MessengerAdminCommand:
+    psid: str
+    page_id: str | None
+    message_id: str
+    text: str
+    timestamp: int | None = None
 
+
+class FacebookStateStore(Protocol):
     async def is_duplicate(self, message_id: str) -> bool:
-        self._cleanup()
-        return message_id in self._processed_messages
+        ...
 
     async def mark_processed(self, message_id: str) -> None:
-        self._processed_messages[message_id] = time.time() + settings.webhook_dedupe_ttl_seconds
+        ...
 
     async def is_human_mode(self, psid: str) -> bool:
-        self._cleanup()
-        expires_at = self._human_mode.get(psid)
-        return bool(expires_at and expires_at > time.time())
+        ...
 
     async def enable_human_mode(self, psid: str) -> None:
-        self._human_mode[psid] = time.time() + settings.human_handover_ttl_seconds
+        ...
 
-    def _cleanup(self) -> None:
-        now = time.time()
-        self._processed_messages = {
-            key: expires_at
-            for key, expires_at in self._processed_messages.items()
-            if expires_at > now
-        }
-        self._human_mode = {
-            key: expires_at
-            for key, expires_at in self._human_mode.items()
-            if expires_at > now
-        }
+    async def disable_human_mode(self, psid: str) -> None:
+        ...
+
+    async def consume_expired_handover(self, psid: str) -> bool:
+        ...
 
 
 class RedisFacebookStateStore:
@@ -77,11 +74,22 @@ class RedisFacebookStateStore:
         return bool(await self._redis.exists(self._human_key(psid)))
 
     async def enable_human_mode(self, psid: str) -> None:
-        await self._redis.set(
-            self._human_key(psid),
-            "1",
-            ex=settings.human_handover_ttl_seconds,
-        )
+        ttl = settings.human_handover_ttl_seconds
+        await self._redis.set(self._human_key(psid), "1", ex=ttl)
+        await self._redis.set(self._handover_marker_key(psid), "1", ex=ttl + settings.webhook_dedupe_ttl_seconds)
+
+    async def disable_human_mode(self, psid: str) -> None:
+        await self._redis.delete(self._human_key(psid), self._handover_marker_key(psid))
+
+    async def consume_expired_handover(self, psid: str) -> bool:
+        human_key = self._human_key(psid)
+        marker_key = self._handover_marker_key(psid)
+        if await self._redis.exists(human_key):
+            return False
+        if not await self._redis.exists(marker_key):
+            return False
+        await self._redis.delete(marker_key)
+        return True
 
     @staticmethod
     def _dedupe_key(message_id: str) -> str:
@@ -91,19 +99,15 @@ class RedisFacebookStateStore:
     def _human_key(psid: str) -> str:
         return f"fb:human_mode:{psid}"
 
+    @staticmethod
+    def _handover_marker_key(psid: str) -> str:
+        return f"fb:human_mode_seen:{psid}"
 
-def build_state_store() -> InMemoryFacebookStateStore | RedisFacebookStateStore:
+
+def build_state_store() -> RedisFacebookStateStore:
     if not settings.redis_url:
-        return InMemoryFacebookStateStore()
-    try:
-        return RedisFacebookStateStore(settings.redis_url)
-    except ImportError:
-        print(
-            "[FACEBOOK_STATE_STORE]",
-            {"event": "redis_package_missing", "fallback": "memory"},
-            flush=True,
-        )
-        return InMemoryFacebookStateStore()
+        raise RuntimeError("REDIS_URL is required for Facebook handover state.")
+    return RedisFacebookStateStore(settings.redis_url)
 
 
 state_store = build_state_store()
@@ -153,6 +157,19 @@ def extract_text_messages(payload: FacebookWebhookPayload) -> list[MessengerText
     return messages
 
 
+def extract_admin_commands(payload: FacebookWebhookPayload) -> list[MessengerAdminCommand]:
+    commands: list[MessengerAdminCommand] = []
+    if payload.object != "page":
+        return commands
+
+    for entry in payload.entry:
+        for event in entry.messaging:
+            command = _extract_admin_command(entry.id, event)
+            if command:
+                commands.append(command)
+    return commands
+
+
 def _extract_text_message(page_id: str | None, event: FacebookMessagingEvent) -> MessengerTextMessage | None:
     if event.delivery or event.read or event.reaction:
         return None
@@ -172,6 +189,35 @@ def _extract_text_message(page_id: str | None, event: FacebookMessagingEvent) ->
     )
 
 
+def _extract_admin_command(page_id: str | None, event: FacebookMessagingEvent) -> MessengerAdminCommand | None:
+    if event.delivery or event.read or event.reaction:
+        return None
+    if not event.recipient or not event.message:
+        return None
+    if not event.message.is_echo:
+        return None
+    if not event.message.text or not event.message.mid:
+        return None
+    if normalize_command(event.message.text) not in ADMIN_RESUME_COMMANDS:
+        return None
+
+    return MessengerAdminCommand(
+        psid=event.recipient.id,
+        page_id=page_id or (event.sender.id if event.sender else None),
+        message_id=event.message.mid,
+        text=event.message.text.strip(),
+        timestamp=event.timestamp,
+    )
+
+
+def is_customer_resume_command(text: str) -> bool:
+    return normalize_command(text) in CUSTOMER_RESUME_COMMANDS
+
+
+def normalize_command(text: str) -> str:
+    return " ".join(text.strip().lower().split())
+
+
 def should_handover(bot_result: dict[str, Any]) -> bool:
     if not settings.enable_human_handover:
         return False
@@ -181,7 +227,7 @@ def should_handover(bot_result: dict[str, Any]) -> bool:
         return True
 
     intent = str(bot_result.get("intent") or "").lower()
-    if "fallback" in intent or "unknown" in intent:
+    if "fallback" in intent or "unknown" in intent or "handover" in intent or "human" in intent:
         return True
 
     confidence = bot_result.get("confidence")
