@@ -19,6 +19,12 @@
   },
   "pnpm": {
     "overrides": {
+      "react": "18.3.1",
+      "react-dom": "18.3.1",
+      "@dtc/storefront>react": "19.0.5",
+      "@dtc/storefront>react-dom": "19.0.5",
+      "next>react": "19.0.5",
+      "next>react-dom": "19.0.5",
       "@types/react": "19.0.5",
       "@types/react-dom": "19.0.5"
     },

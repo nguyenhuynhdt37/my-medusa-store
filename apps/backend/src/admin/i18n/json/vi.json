@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json.schemastore.org/jsonc",
+  "chat": {
+    "routeLabel": "Hỗ trợ trực tuyến",
+    "sidebar": {
+      "title": "Hỗ trợ trực tuyến",
+      "searchPlaceholder": "Tìm kiếm cuộc trò chuyện...",
+      "loading": "Đang tải...",
+      "noConversations": "Chưa có cuộc trò chuyện nào",
+      "all": "Tất cả",
+      "botHandled": "Bot hỗ trợ",
+      "waitingAdmin": "Chờ nhân viên",
+      "inProgress": "Nhân viên hỗ trợ",
+      "closed": "Đã đóng",
+      "connected": "Đã kết nối",
+      "connecting": "Đang kết nối...",
+      "disconnected": "Mất kết nối"
+    },
+    "stats": {
+      "aiHandled": "Bot xử lý",
+      "aiRate": "Tỷ lệ AI xử lý",
+      "escalated": "Chuyển nhân viên",
+      "escTime": "Thời gian tiếp nhận"
+    },
+    "presence": {
+      "online": "Đang online",
+      "offline": "Offline",
+      "justNow": "vừa xong",
+      "minutesAgo": "cách {{count}} phút",
+      "hoursAgo": "cách {{count}} giờ",
+      "daysAgo": "cách {{count}} ngày"
+    },
+    "status": {
+      "botHandled": {
+        "label": "Bot đang hỗ trợ",
+        "description": "AI đang phụ trách cuộc hội thoại này."
+      },
+      "waitingAdmin": {
+        "label": "Chờ nhân viên tiếp nhận",
+        "description": "Khách đang chờ admin tiếp nhận hỗ trợ."
+      },
+      "inProgress": {
+        "label": "Nhân viên đang hỗ trợ",
+        "description": "Admin đang hỗ trợ khách. Bot không trả lời trong phiên này."
+      },
+      "closed": {
+        "label": "Đã đóng",
+        "description": "Phiên hỗ trợ đã kết thúc."
+      },
+      "resolved": {
+        "label": "Đã đóng",
+        "description": "Phiên hỗ trợ đã kết thúc."
+      }
+    },
+    "header": {
+      "loggedInCustomer": "Khách hàng đăng nhập",
+      "anonymousCustomer": "Khách hàng ẩn danh",
+      "botProcessing": "Bot đang xử lý",
+      "sessionClosed": "Phiên đã đóng"
+    },
+    "actions": {
+      "takeOver": "Tiếp nhận hỗ trợ",
+      "returnToBot": "Giao lại cho Bot",
+      "closeSession": "Đóng phiên",
+      "reopenSession": "Nhận lại phiên"
+    },
+    "messages": {
+      "noMessages": "Chưa có tin nhắn nào",
+      "placeholder": "Gõ tin nhắn... (Shift + Enter để xuống dòng)",
+      "botProcessing": "Bot đang xử lý cuộc trò chuyện này.",
+      "waitingForAdmin": "Tiếp nhận hỗ trợ để bắt đầu trả lời khách.",
+      "sessionClosed": "Phiên đã đóng.",
+      "imageAlt": "Hình ảnh trong chat"
+    },
+    "sender": {
+      "you": "Bạn",
+      "bot": "Bot",
+      "customer": "Khách hàng",
+      "guest": "Khách ẩn danh",
+      "unknown": "Khách"
+    },
+    "empty": {
+      "title": "Chọn một cuộc trò chuyện",
+      "description": "Chọn cuộc trò chuyện từ danh sách bên trái để bắt đầu hỗ trợ"
+    },
+    "error": {
+      "panelTitle": "Không thể hiển thị khung chat",
+      "panelDescription": "Có lỗi render trong Chat Panel. Xem console với log CHAT_PANEL_RENDER_ERROR để xử lý chi tiết.",
+      "loadConversations": "Không thể tải danh sách chat",
+      "loadMessages": "Không thể tải tin nhắn",
+      "sendMessage": "Gửi tin nhắn thất bại",
+      "updateStatus": "Không thể cập nhật"
+    },
+    "success": {
+      "updateStatus": "Cập nhật trạng thái thành công"
+    },
+    "notifications": {
+      "baseTitle": "Medusan Chat",
+      "notificationTitle": "Medusan",
+      "senderBot": "Bot",
+      "senderGuest": "Khách"
+    },
+    "customer": {
+      "customer": "Khách",
+      "guest": "Ẩn danh"
+    }
+  },
+  "common": {
+    "loading": "Đang tải...",
+    "error": "Lỗi",
+    "success": "Thành công",
+    "confirm": "Xác nhận",
+    "cancel": "Hủy",
+    "save": "Lưu",
+    "delete": "Xóa",
+    "edit": "Chỉnh sửa",
+    "close": "Đóng",
+    "search": "Tìm kiếm",
+    "create": "Tạo mới",
+    "update": "Cập nhật",
+    "required": "Trường bắt buộc",
+    "invalidEmail": "Email không hợp lệ",
+    "somethingWrong": "Đã xảy ra lỗi",
+    "savedSuccess": "Lưu thành công",
+    "updatedSuccess": "Cập nhật thành công",
+    "deletedSuccess": "Xóa thành công"
+  }
+}

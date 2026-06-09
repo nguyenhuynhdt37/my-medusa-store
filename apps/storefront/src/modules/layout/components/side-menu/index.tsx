@@ -4,6 +4,7 @@ import { Popover, PopoverPanel, Transition } from "@headlessui/react"
 import useToggleState from "@lib/hooks/use-toggle-state"
 import { ArrowRightMini, XMark } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
+import { useTranslation } from "react-i18next"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { Text, clx } from "@modules/common/components/ui"
 import { Fragment } from "react"
@@ -11,13 +12,12 @@ import CountrySelect from "../country-select"
 import LanguageSelect from "../language-select"
 import { Locale } from "@lib/data/locales"
 
-
-const SideMenuItems = {
-  Home: "/",
-  Store: "/store",
-  Account: "/account",
-  Cart: "/cart",
-}
+const SideMenuItems = (t: (key: string) => string) => ({
+  [t("common.nav.home")]: "/",
+  [t("common.nav.store")]: "/store",
+  [t("common.nav.account")]: "/account",
+  [t("common.nav.cart")]: "/cart",
+})
 
 type SideMenuProps = {
   regions: HttpTypes.StoreRegion[] | null
@@ -26,8 +26,10 @@ type SideMenuProps = {
 }
 
 const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
+  const { t } = useTranslation()
   const countryToggleState = useToggleState()
   const languageToggleState = useToggleState()
+  const sideMenuItems = SideMenuItems(t)
 
   return (
     <div className="h-full">
@@ -40,7 +42,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                   data-testid="nav-menu-button"
                   className="relative h-full flex items-center transition-all ease-out duration-200 focus:outline-none hover:text-ui-fg-base"
                 >
-                  Menu
+                  {t("common.nav.menu")}
                 </Popover.Button>
               </div>
 
@@ -73,7 +75,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                       </button>
                     </div>
                     <ul className="flex flex-col gap-6 items-start justify-start">
-                      {Object.entries(SideMenuItems).map(([name, href]) => {
+                      {Object.entries(sideMenuItems).map(([name, href]) => {
                         return (
                           <li key={name}>
                             <LocalizedClientLink
@@ -127,8 +129,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                         />
                       </div>
                       <Text className="flex justify-between txt-compact-small">
-                        © {new Date().getFullYear()} Medusa Store. All rights
-                        reserved.
+                        © {new Date().getFullYear()} Medusa Store. {t("footer.allRightsReserved")}.
                       </Text>
                     </div>
                   </div>

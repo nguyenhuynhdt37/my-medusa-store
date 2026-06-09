@@ -40,6 +40,9 @@ export const POST = async (
   }
 
   const chatModuleService = req.scope.resolve(CHAT_MODULE)
+  const currentConversation = await chatModuleService.retrieveChatConversation(id)
+  const previousMetadata = (currentConversation.admin_metadata || {}) as Record<string, any>
+  const now = new Date()
   console.info(`${LOG_PREFIX} payload received`, {
     conversation_id: id,
     sender_type: "admin",
@@ -75,10 +78,12 @@ export const POST = async (
   await chatModuleService.updateChatConversations({
     id: id,
     status: "IN_PROGRESS",
-    admin_started_at: new Date(),
-    last_message_at: new Date(),
+    admin_started_at: currentConversation.admin_started_at || now,
+    last_message_at: now,
     admin_metadata: {
+      ...previousMetadata,
       unread_admin_count: 0,
+      last_admin_message_at: now.toISOString(),
     },
   })
   console.info(`${LOG_PREFIX} conversation timestamp updated`, {
@@ -111,7 +116,7 @@ export const POST = async (
       body: JSON.stringify({
         conversation_id: id,
         event: "chat.message.created",
-        data: message,
+        data: { ...message, conversation_id: id },
         notify_admin: true,
       })
     })

@@ -13,10 +13,12 @@
     "medusa"
   ],
   "scripts": {
-    "clean:admin-cache": "rm -rf node_modules/.vite .medusa/client .medusa/server .medusa/admin",
+    "clean:admin-cache": "rm -rf .medusa/client .medusa/server .medusa/admin",
+    "clean:vite": "rm -rf node_modules/.vite",
     "build": "pnpm run clean:admin-cache && medusa build",
     "start": "medusa start",
-    "dev": "pnpm run clean:admin-cache && medusa develop",
+    "dev": "medusa develop",
+    "dev:clean": "pnpm run clean:vite && pnpm run clean:admin-cache && medusa develop",
     "seed": "medusa exec ./src/migration-scripts/initial-data-seed.ts",
     "seed:context": "medusa exec ./src/migration-scripts/enrich-demo-data.ts",
     "test:integration:http": "TEST_TYPE=integration:http NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit",

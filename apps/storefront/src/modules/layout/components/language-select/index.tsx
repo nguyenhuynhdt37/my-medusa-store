@@ -9,6 +9,7 @@ import {
 } from "@headlessui/react"
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import { useTranslation } from "react-i18next"
 import ReactCountryFlag from "react-country-flag"
 
 import { StateType } from "@lib/hooks/use-toggle-state"
@@ -63,8 +64,8 @@ const getLocalizedLanguageName = (
 
 const DEFAULT_OPTION: LanguageOption = {
   code: "",
-  name: "Default",
-  localizedName: "Default",
+  name: "",
+  localizedName: "",
   countryCode: "",
 }
 
@@ -73,11 +74,22 @@ const LanguageSelect = ({
   locales,
   currentLocale,
 }: LanguageSelectProps) => {
+  const { t } = useTranslation()
   const [current, setCurrent] = useState<LanguageOption | undefined>(undefined)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
   const { state, close } = toggleState
+
+  const defaultOption = useMemo(
+    () => ({
+      code: "",
+      name: "",
+      localizedName: t("common.nav.default"),
+      countryCode: "",
+    }),
+    [t]
+  )
 
   const options = useMemo(() => {
     const localeOptions = locales.map((locale) => ({
@@ -86,23 +98,23 @@ const LanguageSelect = ({
       localizedName: getLocalizedLanguageName(
         locale.code,
         locale.name,
-        currentLocale ?? "en-US"
+        currentLocale === "vi" ? "vi" : "en"
       ),
       countryCode: getCountryCodeFromLocale(locale.code),
     }))
-    return [DEFAULT_OPTION, ...localeOptions]
-  }, [locales, currentLocale])
+    return [defaultOption, ...localeOptions]
+  }, [locales, currentLocale, defaultOption])
 
   useEffect(() => {
     if (currentLocale) {
       const option = options.find(
         (o) => o.code.toLowerCase() === currentLocale.toLowerCase()
       )
-      setCurrent(option ?? DEFAULT_OPTION)
+      setCurrent(option ?? defaultOption)
     } else {
-      setCurrent(DEFAULT_OPTION)
+      setCurrent(defaultOption)
     }
-  }, [options, currentLocale])
+  }, [options, currentLocale, defaultOption])
 
   const handleChange = (option: LanguageOption) => {
     startTransition(async () => {
@@ -120,15 +132,15 @@ const LanguageSelect = ({
         defaultValue={
           currentLocale
             ? options.find(
-                (o) => o.code.toLowerCase() === currentLocale.toLowerCase()
-              ) ?? DEFAULT_OPTION
-            : DEFAULT_OPTION
+              (o) => o.code.toLowerCase() === currentLocale.toLowerCase()
+            ) ?? defaultOption
+            : defaultOption
         }
         disabled={isPending}
       >
         <ListboxButton className="py-1 w-full">
           <div className="txt-compact-small flex items-start gap-x-2">
-            <span>Language:</span>
+            <span>{t("common.nav.language")}:</span>
             {current && (
               <span className="txt-compact-small flex items-center gap-x-2">
                 {current.countryCode && (

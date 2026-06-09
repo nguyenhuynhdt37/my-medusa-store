@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json.schemastore.org/jsonc",
+  "chat": {
+    "routeLabel": "Live Chat",
+    "sidebar": {
+      "title": "Live Chat",
+      "searchPlaceholder": "Search conversations...",
+      "loading": "Loading...",
+      "noConversations": "No conversations found.",
+      "all": "All",
+      "botHandled": "Bot Handled",
+      "waitingAdmin": "Waiting Admin",
+      "inProgress": "In Progress",
+      "closed": "Closed",
+      "connected": "Connected",
+      "connecting": "Connecting...",
+      "disconnected": "Disconnected"
+    },
+    "stats": {
+      "aiHandled": "AI Handled",
+      "aiRate": "AI Rate",
+      "escalated": "Escalated",
+      "escTime": "Escalation Time"
+    },
+    "presence": {
+      "online": "Online",
+      "offline": "Offline",
+      "justNow": "just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    },
+    "status": {
+      "botHandled": {
+        "label": "Bot Handled",
+        "description": "AI is handling this conversation."
+      },
+      "waitingAdmin": {
+        "label": "Waiting for Admin",
+        "description": "Customer is waiting for admin to take over."
+      },
+      "inProgress": {
+        "label": "Admin Handling",
+        "description": "Admin is handling the customer. Bot is paused."
+      },
+      "closed": {
+        "label": "Closed",
+        "description": "Support session has ended."
+      },
+      "resolved": {
+        "label": "Closed",
+        "description": "Support session has ended."
+      }
+    },
+    "header": {
+      "loggedInCustomer": "Logged-in Customer",
+      "anonymousCustomer": "Anonymous Customer",
+      "botProcessing": "Bot is processing",
+      "sessionClosed": "Session closed"
+    },
+    "actions": {
+      "takeOver": "Take Over",
+      "returnToBot": "Return to Bot",
+      "closeSession": "Close Session",
+      "reopenSession": "Reopen Session"
+    },
+    "messages": {
+      "noMessages": "No messages yet",
+      "placeholder": "Type a message... (Shift + Enter for new line)",
+      "botProcessing": "Bot is processing this conversation.",
+      "waitingForAdmin": "Take over the chat to reply to the customer.",
+      "sessionClosed": "Support session has closed.",
+      "imageAlt": "Chat image"
+    },
+    "sender": {
+      "you": "You",
+      "bot": "Bot",
+      "customer": "Customer",
+      "guest": "Guest",
+      "unknown": "Guest"
+    },
+    "empty": {
+      "title": "Select a conversation",
+      "description": "Select a conversation from the sidebar to start chatting."
+    },
+    "error": {
+      "panelTitle": "Cannot display chat panel",
+      "panelDescription": "An error occurred in Chat Panel. See console with log CHAT_PANEL_RENDER_ERROR for details.",
+      "loadConversations": "Failed to load chat list",
+      "loadMessages": "Failed to load messages",
+      "sendMessage": "Failed to send message",
+      "updateStatus": "Failed to update"
+    },
+    "success": {
+      "updateStatus": "Status updated successfully"
+    },
+    "notifications": {
+      "baseTitle": "Medusan Chat",
+      "notificationTitle": "Medusan",
+      "senderBot": "Bot",
+      "senderGuest": "Guest"
+    },
+    "customer": {
+      "customer": "Customer",
+      "guest": "Guest"
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "search": "Search",
+    "create": "Create",
+    "update": "Update",
+    "required": "Required",
+    "invalidEmail": "Invalid email",
+    "somethingWrong": "Something went wrong",
+    "savedSuccess": "Saved successfully",
+    "updatedSuccess": "Updated successfully",
+    "deletedSuccess": "Deleted successfully"
+  }
+}

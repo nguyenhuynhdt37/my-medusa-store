@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { CHAT_MODULE } from "../../../../modules/chat"
 import { CHAT_STATUSES, isAdminVisibleChatStatus } from "../../../../modules/chat/status"
+import { runChatAutoReturn } from "../../../utils/chat-auto-return"
 
 const LOG_PREFIX = "[chat:store:messages]"
 
@@ -34,7 +35,8 @@ export const POST = async (
 
   const data = parsed.data
   const chatModuleService = req.scope.resolve(CHAT_MODULE)
-  
+  await runChatAutoReturn(chatModuleService)
+
   const customerId = (req as any).auth_context?.actor_type === "customer" ? (req as any).auth_context.actor_id : null
   const guestId = data.guest_id || null
   const conversationId = data.conversation_id || null
@@ -166,23 +168,32 @@ export const POST = async (
   const previousStatus = conversation.status
   const nextStatus = data.conversation_status || conversation.status || "BOT_HANDLED"
   const previousMetadata = (conversation.admin_metadata || {}) as Record<string, any>
+  const now = new Date()
   const unreadAdminCount =
     nextStatus === "WAITING_ADMIN" && !isAdminVisibleChatStatus(previousStatus)
       ? 1
       : isAdminVisibleChatStatus(nextStatus) && ["customer", "guest"].includes(data.sender_type)
-      ? Number(previousMetadata.unread_admin_count || 0) + 1
-      : previousMetadata.unread_admin_count || 0
+        ? Number(previousMetadata.unread_admin_count || 0) + 1
+        : previousMetadata.unread_admin_count || 0
   const adminMetadata = {
     ...previousMetadata,
     unread_admin_count: unreadAdminCount,
     failed_response_count: data.failed_response_count ?? previousMetadata.failed_response_count ?? 0,
     ai_confidence: data.ai_confidence ?? previousMetadata.ai_confidence ?? null,
+    ...(["customer", "guest"].includes(data.sender_type) ? { last_customer_message_at: now.toISOString() } : {}),
+    ...(nextStatus === "WAITING_ADMIN"
+      ? {
+        auto_returned_at: null,
+        auto_return_reason: null,
+        support_request_cancelled_at: null,
+      }
+      : {}),
   }
 
   const conversationUpdate: Record<string, any> = {
     id: conversation.id,
     status: nextStatus,
-    last_message_at: new Date(),
+    last_message_at: now,
     admin_metadata: adminMetadata,
   }
 
@@ -247,7 +258,7 @@ export const POST = async (
       body: JSON.stringify({
         conversation_id: conversation.id,
         event: "chat.message.created",
-        data: message,
+        data: { ...message, conversation_id: conversation.id },
         notify_admin: notifyAdmin,
       })
     })

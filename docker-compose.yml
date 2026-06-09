@@ -55,6 +55,7 @@ services:
       PNPM_HOME: /pnpm
     ports:
       - "9000:9000"
+      - "7001:7001"
     volumes:
       - .:/app
       - root_node_modules:/app/node_modules

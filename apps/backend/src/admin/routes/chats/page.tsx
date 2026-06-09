@@ -3,6 +3,7 @@ import { toast } from "@medusajs/ui"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Component, useEffect, useState, useRef, type ErrorInfo, type ReactNode } from "react"
 import ReactMarkdown from "react-markdown"
+import { useTranslation } from "react-i18next"
 import { useChatNotifications } from "../../lib/chat-notifications"
 
 type ChatMessage = {
@@ -17,11 +18,19 @@ type ChatConversation = {
   id: string
   customer_id?: string
   guest_id?: string
+  customer_name?: string
+  customer_email?: string
   status: "BOT_HANDLED" | "WAITING_ADMIN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
   last_message_at?: string
+  last_message_preview?: string
+  last_message_sender?: ChatMessage["sender_type"] | null
   escalation_reason?: string
   admin_metadata?: {
     unread_admin_count?: number
+    last_customer_message_at?: string
+    last_admin_message_at?: string
+    auto_returned_at?: string
+    auto_return_reason?: string
   }
 }
 
@@ -38,6 +47,102 @@ type ChatStats = {
 
 type IconProps = {
   className?: string
+}
+
+type StatusMeta = {
+  label: string
+  description: string
+  badgeColor: "green" | "orange" | "blue" | "grey"
+  dotClassName: string
+}
+
+type ErrorBoundaryStrings = {
+  panelTitle: string
+  panelDescription: string
+}
+
+type TranslateOptions = Record<string, unknown>
+type Translate = (key: string, fallbackOrOptions?: string | TranslateOptions) => string
+
+const CHAT_FALLBACKS: Record<string, string> = {
+  "chat.sidebar.title": "Hỗ trợ trực tuyến",
+  "chat.sidebar.connected": "Đã kết nối",
+  "chat.sidebar.connecting": "Đang kết nối...",
+  "chat.sidebar.disconnected": "Mất kết nối",
+  "chat.sidebar.searchPlaceholder": "Tìm kiếm cuộc trò chuyện...",
+  "chat.sidebar.noConversations": "Chưa có cuộc trò chuyện nào",
+  "chat.stats.aiHandled": "Bot xử lý",
+  "chat.stats.aiRate": "Tỷ lệ AI xử lý",
+  "chat.stats.escalated": "Chuyển nhân viên",
+  "chat.stats.escTime": "Thời gian tiếp nhận",
+  "chat.empty.title": "Chọn một cuộc trò chuyện",
+  "chat.empty.description": "Chọn cuộc trò chuyện từ danh sách bên trái để bắt đầu hỗ trợ",
+  "chat.notifications.baseTitle": "Medusan Chat",
+  "chat.notifications.notificationTitle": "Medusan",
+  "chat.sender.bot": "Bot",
+  "chat.sender.guest": "Khách",
+  "chat.sender.you": "Bạn",
+  "chat.sender.customer": "Khách hàng",
+  "chat.sender.unknown": "Khách",
+  "chat.error.panelTitle": "Không thể hiển thị khung chat",
+  "chat.error.panelDescription": "Có lỗi render trong Chat Panel. Xem console với log CHAT_PANEL_RENDER_ERROR để xử lý chi tiết.",
+  "chat.error.loadConversations": "Không thể tải danh sách chat",
+  "chat.error.loadMessages": "Không thể tải tin nhắn",
+  "chat.error.sendMessage": "Gửi tin nhắn thất bại",
+  "chat.error.updateStatus": "Không thể cập nhật",
+  "chat.success.updateStatus": "Cập nhật trạng thái thành công",
+  "chat.presence.online": "Đang online",
+  "chat.presence.offline": "Offline",
+  "chat.presence.justNow": "vừa xong",
+  "chat.presence.minutesAgo": "cách {{count}} phút",
+  "chat.presence.hoursAgo": "cách {{count}} giờ",
+  "chat.presence.daysAgo": "cách {{count}} ngày",
+  "chat.customer.customer": "Khách",
+  "chat.customer.guest": "Ẩn danh",
+  "chat.header.loggedInCustomer": "Khách hàng đăng nhập",
+  "chat.header.anonymousCustomer": "Khách hàng ẩn danh",
+  "chat.header.botProcessing": "Bot đang xử lý",
+  "chat.header.sessionClosed": "Phiên đã đóng",
+  "chat.actions.takeOver": "Tiếp nhận hỗ trợ",
+  "chat.actions.returnToBot": "Giao lại cho Bot",
+  "chat.actions.closeSession": "Đóng phiên",
+  "chat.actions.reopenSession": "Nhận lại phiên",
+  "chat.messages.noMessages": "Chưa có tin nhắn nào",
+  "chat.messages.placeholder": "Gõ tin nhắn... (Shift + Enter để xuống dòng)",
+  "chat.messages.botProcessing": "Bot đang xử lý cuộc trò chuyện này.",
+  "chat.messages.waitingForAdmin": "Tiếp nhận hỗ trợ để bắt đầu trả lời khách.",
+  "chat.messages.sessionClosed": "Phiên đã đóng.",
+  "chat.messages.imageAlt": "Hình ảnh trong chat",
+  "chat.status.botHandled.label": "Bot đang hỗ trợ",
+  "chat.status.botHandled.description": "AI đang phụ trách cuộc hội thoại này.",
+  "chat.status.waitingAdmin.label": "Chờ nhân viên tiếp nhận",
+  "chat.status.waitingAdmin.description": "Khách đang chờ admin tiếp nhận hỗ trợ.",
+  "chat.status.inProgress.label": "Nhân viên đang hỗ trợ",
+  "chat.status.inProgress.description": "Admin đang hỗ trợ khách. Bot không trả lời trong phiên này.",
+  "chat.status.closed.label": "Đã đóng",
+  "chat.status.closed.description": "Phiên hỗ trợ đã kết thúc.",
+  "chat.status.resolved.label": "Đã đóng",
+  "chat.status.resolved.description": "Phiên hỗ trợ đã kết thúc.",
+  "common.loading": "Đang tải...",
+  "common.error": "Lỗi",
+  "common.success": "Thành công",
+}
+
+const makeTranslate = (translate: ReturnType<typeof useTranslation>["t"]): Translate => {
+  return (key, fallbackOrOptions) => {
+    const fallback = typeof fallbackOrOptions === "string"
+      ? fallbackOrOptions
+      : CHAT_FALLBACKS[key] || key
+    const options = typeof fallbackOrOptions === "object"
+      ? { ...fallbackOrOptions, defaultValue: fallback }
+      : fallback
+    const translated = (translate as any)(key, options)
+    if (translated === key) {
+      return fallback
+    }
+
+    return translated
+  }
 }
 
 const createIcon = (content: ReactNode) => ({ className }: IconProps) => (
@@ -63,6 +168,7 @@ const MessageSquareIcon = createIcon(<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 
 
 type ChatPanelErrorBoundaryProps = {
   children: ReactNode
+  strings: ErrorBoundaryStrings
 }
 
 type ChatPanelErrorBoundaryState = {
@@ -88,12 +194,13 @@ class ChatPanelErrorBoundary extends Component<ChatPanelErrorBoundaryProps, Chat
 
   render() {
     if (this.state.error) {
+      const { panelTitle, panelDescription } = this.props.strings
       return (
         <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-ui-bg-subtle text-ui-fg-base p-6">
           <AlertCircleIcon className="w-10 h-10 text-ui-fg-error" />
-          <Heading level="h2" className="text-lg">Không thể hiển thị khung chat</Heading>
+          <Heading level="h2" className="text-lg">{panelTitle}</Heading>
           <Text size="small" className="text-ui-fg-muted text-center max-w-md">
-            Có lỗi render trong Chat Panel. Xem console với log CHAT_PANEL_RENDER_ERROR để xử lý chi tiết.
+            {panelDescription}
           </Text>
         </div>
       )
@@ -110,75 +217,100 @@ const sortMessagesByCreatedAt = (items: ChatMessage[]) => {
 }
 
 const isAdminVisibleConversation = (conversation: ChatConversation) => {
-  return ["BOT_HANDLED", "WAITING_ADMIN", "IN_PROGRESS", "CLOSED"].includes(conversation.status)
+  return ["WAITING_ADMIN", "IN_PROGRESS", "CLOSED", "RESOLVED"].includes(conversation.status)
 }
 
-const getStatusMeta = (status: ChatStatus) => {
+const getStatusMeta = (
+  status: ChatStatus,
+  tt: Translate
+): StatusMeta => {
   switch (status) {
     case "BOT_HANDLED":
       return {
-        label: "Bot đang hỗ trợ",
-        description: "AI đang phụ trách cuộc hội thoại này.",
-        badgeColor: "green" as const,
+        label: tt("chat.status.botHandled.label"),
+        description: tt("chat.status.botHandled.description"),
+        badgeColor: "green",
         dotClassName: "bg-green-500",
       }
     case "WAITING_ADMIN":
       return {
-        label: "Chờ nhân viên tiếp nhận",
-        description: "Khách đang chờ admin tiếp nhận hỗ trợ.",
-        badgeColor: "orange" as const,
+        label: tt("chat.status.waitingAdmin.label"),
+        description: tt("chat.status.waitingAdmin.description"),
+        badgeColor: "orange",
         dotClassName: "bg-yellow-500",
       }
     case "IN_PROGRESS":
       return {
-        label: "Nhân viên đang hỗ trợ",
-        description: "Admin đang hỗ trợ khách. Bot không trả lời trong phiên này.",
-        badgeColor: "blue" as const,
+        label: tt("chat.status.inProgress.label"),
+        description: tt("chat.status.inProgress.description"),
+        badgeColor: "blue",
         dotClassName: "bg-blue-500",
       }
     case "CLOSED":
       return {
-        label: "Đã đóng",
-        description: "Phiên hỗ trợ đã kết thúc.",
-        badgeColor: "grey" as const,
+        label: tt("chat.status.closed.label"),
+        description: tt("chat.status.closed.description"),
+        badgeColor: "grey",
         dotClassName: "bg-gray-500",
       }
     case "RESOLVED":
       return {
-        label: "Đã đóng",
-        description: "Phiên hỗ trợ đã kết thúc.",
-        badgeColor: "grey" as const,
+        label: tt("chat.status.resolved.label"),
+        description: tt("chat.status.resolved.description"),
+        badgeColor: "grey",
         dotClassName: "bg-gray-500",
       }
   }
 }
 
 const ChatAdminPage = () => {
+  const { t, i18n } = useTranslation()
+  const tt = makeTranslate(t)
   const [conversations, setConversations] = useState<ChatConversation[]>([])
   const [filteredConversations, setFilteredConversations] = useState<ChatConversation[]>([])
   const [activeConversation, setActiveConversation] = useState<ChatConversation | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [presenceMap, setPresenceMap] = useState<Record<string, { online: boolean; last_seen_at?: string | null }>>({})
+  const [customerTypingMap, setCustomerTypingMap] = useState<Record<string, boolean>>({})
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(true)
   const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected")
   const wsRef = useRef<WebSocket | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<"all" | "BOT_HANDLED" | "WAITING_ADMIN" | "IN_PROGRESS" | "CLOSED">("all")
+  const [statusFilter, setStatusFilter] = useState<"WAITING_ADMIN" | "IN_PROGRESS" | "CLOSED">("WAITING_ADMIN")
   const [stats, setStats] = useState<ChatStats | null>(null)
   const {
+    permission,
+    support: notificationSupport,
+    serviceWorkerStatus,
     unreadCount,
     notify,
     markRead,
+    testNotification,
   } = useChatNotifications({
-    baseTitle: "Medusan Chat",
-    notificationTitle: "Medusan",
+    baseTitle: tt("chat.notifications.baseTitle"),
+    notificationTitle: tt("chat.notifications.notificationTitle"),
   })
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const activeConversationRef = useRef<ChatConversation | null>(null)
   const lastActiveConvIdRef = useRef<string | null>(null)
+  const adminTypingStopRef = useRef<number | null>(null)
+  const customerTypingTimeoutsRef = useRef<Record<string, number>>({})
+  const notifyRef = useRef(notify)
+  const translateRef = useRef(tt)
+
+  const errorBoundaryStrings: ErrorBoundaryStrings = {
+    panelTitle: tt("chat.error.panelTitle"),
+    panelDescription: tt("chat.error.panelDescription"),
+  }
+
+  useEffect(() => {
+    console.log("[ADMIN_CHAT_I18N_LANGUAGE]", i18n.language)
+    console.log("[ADMIN_CHAT_I18N_STORE]", i18n.store?.data)
+    console.log("[ADMIN_CHAT_I18N_SAMPLE]", tt("chat.sidebar.title"))
+  }, [i18n.language])
 
   const getSidebarConversations = (list: ChatConversation[]) => {
     let result = list
@@ -191,9 +323,11 @@ const ChatAdminPage = () => {
       )
     }
 
-    if (statusFilter !== "all") {
-      result = result.filter(c => c.status === statusFilter)
-    }
+    result = result.filter(c =>
+      statusFilter === "CLOSED"
+        ? c.status === "CLOSED" || c.status === "RESOLVED"
+        : c.status === statusFilter
+    )
 
     return result
   }
@@ -228,6 +362,11 @@ const ChatAdminPage = () => {
   }, [activeConversation, markRead])
 
   useEffect(() => {
+    notifyRef.current = notify
+    translateRef.current = tt
+  }, [notify, tt])
+
+  useEffect(() => {
     fetchConversations()
   }, [])
 
@@ -250,7 +389,6 @@ const ChatAdminPage = () => {
         setMessages([])
         fetchMessages(activeConversation.id)
       }
-      // fetch persisted presence for this conversation
       const fetchPresence = async () => {
         try {
           const res = await fetch(`/admin/chats/${activeConversation.id}/presence`)
@@ -266,7 +404,7 @@ const ChatAdminPage = () => {
             }, null)
           }
           setPresenceMap(prev => ({ ...prev, [activeConversation.id]: { online: anyOnline, last_seen_at: latest } }))
-        } catch (e) {
+        } catch {
           // ignore
         }
       }
@@ -278,17 +416,6 @@ const ChatAdminPage = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
-
-  useEffect(() => {
-    console.table(
-      sortMessagesByCreatedAt(messages).map((m) => ({
-        id: m.id,
-        sender: m.sender_type,
-        created_at: m.created_at,
-        content: m.content,
-      }))
-    )
   }, [messages])
 
   useEffect(() => {
@@ -311,16 +438,50 @@ const ChatAdminPage = () => {
             const msg = payload.data
             const customEvent = new CustomEvent("new_chat_message", { detail: payload })
             window.dispatchEvent(customEvent)
-            void notify(
+            void notifyRef.current(
               {
                 id: msg.id,
-                senderLabel: msg.sender_type === "bot" ? "Bot" : "Khách",
+                conversationId: msg.conversation_id,
+                senderLabel: msg.sender_type === "bot" ? translateRef.current("chat.sender.bot") : translateRef.current("chat.sender.guest"),
                 content: msg.content || "",
               },
               msg.sender_type !== "admin" && (document.hidden || activeConversationRef.current?.id !== msg.conversation_id)
             )
 
             fetchConversations(false)
+          }
+          if (payload.event === "conversation.status.updated") {
+            const updated = payload.data?.conversation as ChatConversation | undefined
+            if (updated) {
+              setConversations((current) => {
+                const exists = current.some((conversation) => conversation.id === updated.id)
+                return exists
+                  ? current.map((conversation) => conversation.id === updated.id ? updated : conversation)
+                  : [...current, updated]
+              })
+              if (activeConversationRef.current?.id === updated.id) {
+                setActiveConversation(updated)
+              }
+            }
+          }
+          if (payload.event === "typing.start" && payload.data?.user_type !== "admin") {
+            const convId = payload.conversation_id
+            if (convId) {
+              setCustomerTypingMap(prev => ({ ...prev, [convId]: true }))
+              const existing = customerTypingTimeoutsRef.current[convId]
+              if (existing) {
+                window.clearTimeout(existing)
+              }
+              customerTypingTimeoutsRef.current[convId] = window.setTimeout(() => {
+                setCustomerTypingMap(prev => ({ ...prev, [convId]: false }))
+              }, 5000)
+            }
+          }
+          if (payload.event === "typing.stop" && payload.data?.user_type !== "admin") {
+            const convId = payload.conversation_id
+            if (convId) {
+              setCustomerTypingMap(prev => ({ ...prev, [convId]: false }))
+            }
           }
           if (payload.event === "presence.updated") {
             try {
@@ -336,11 +497,13 @@ const ChatAdminPage = () => {
                 }, null)
               }
               setPresenceMap(prev => ({ ...prev, [convId]: { online: anyOnline, last_seen_at: latest } }))
-            } catch (e) {
+            } catch {
               // ignore
             }
           }
-        } catch (e) { }
+        } catch {
+          // ignore
+        }
       }
 
       ws.onclose = () => {
@@ -361,10 +524,15 @@ const ChatAdminPage = () => {
         wsRef.current.onclose = null
         wsRef.current.close()
       }
+      if (adminTypingStopRef.current) {
+        window.clearTimeout(adminTypingStopRef.current)
+        adminTypingStopRef.current = null
+      }
+      Object.values(customerTypingTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId))
+      customerTypingTimeoutsRef.current = {}
     }
-  }, []) // Mount once
+  }, [])
 
-  // Listen for custom event to update messages array safely with activeConversation context
   useEffect(() => {
     const handleNewMessage = (e: Event) => {
       const customEvent = e as CustomEvent
@@ -392,8 +560,8 @@ const ChatAdminPage = () => {
       setConversations(list)
       setStats(data.stats || null)
       syncActiveConversationFromList(list)
-    } catch (err) {
-      toast.error("Lỗi", { description: "Không thể tải danh sách chat" })
+    } catch {
+      toast.error(tt("common.error"), { description: tt("chat.error.loadConversations") })
     } finally {
       if (showLoading) setLoading(false)
     }
@@ -422,8 +590,8 @@ const ChatAdminPage = () => {
 
         return sortMessagesByCreatedAt(Array.from(mergedById.values()))
       })
-    } catch (err) {
-      toast.error("Lỗi", { description: "Không thể tải tin nhắn" })
+    } catch {
+      toast.error(tt("common.error"), { description: tt("chat.error.loadMessages") })
     }
   }
 
@@ -433,6 +601,7 @@ const ChatAdminPage = () => {
 
     const tempInput = input.trim()
     setInput("")
+    emitAdminTyping("typing.stop")
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto"
     }
@@ -443,8 +612,8 @@ const ChatAdminPage = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: tempInput }),
       })
-    } catch (err) {
-      toast.error("Lỗi", { description: "Gửi tin nhắn thất bại" })
+    } catch {
+      toast.error(tt("common.error"), { description: tt("chat.error.sendMessage") })
     }
   }
 
@@ -489,11 +658,11 @@ const ChatAdminPage = () => {
         setActiveConversation(sidebarList[0] || null)
       }
 
-      toast.success("Thành công", { description: "Cập nhật trạng thái thành công" })
+      toast.success(tt("common.success"), { description: tt("chat.success.updateStatus") })
       void fetchConversations(false)
     } catch (err) {
       console.error("CHAT_ACTION_ERROR", err)
-      toast.error("Lỗi", { description: "Không thể cập nhật" })
+      toast.error(tt("common.error"), { description: tt("chat.error.updateStatus") })
     }
   }
 
@@ -504,8 +673,31 @@ const ChatAdminPage = () => {
     }
   }
 
+  const emitAdminTyping = (event: "typing.start" | "typing.stop") => {
+    const ws = wsRef.current
+    if (!activeConversation || !ws || ws.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    ws.send(JSON.stringify({
+      event,
+      data: {
+        conversation_id: activeConversation.id,
+        user_type: "admin",
+        name: "NV Hỗ trợ",
+      },
+    }))
+  }
+
   const handleTextareaInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)
+    emitAdminTyping("typing.start")
+    if (adminTypingStopRef.current) {
+      window.clearTimeout(adminTypingStopRef.current)
+    }
+    adminTypingStopRef.current = window.setTimeout(() => {
+      emitAdminTyping("typing.stop")
+    }, 1200)
     e.target.style.height = 'auto'
     e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`
   }
@@ -514,14 +706,14 @@ const ChatAdminPage = () => {
     if (!iso) return ""
     const then = new Date(iso).getTime()
     const delta = Math.floor((Date.now() - then) / 1000)
-    if (delta < 60) return "vừa xong"
-    if (delta < 3600) return `cách ${Math.floor(delta / 60)} phút`
-    if (delta < 86400) return `cách ${Math.floor(delta / 3600)} giờ`
-    return `cách ${Math.floor(delta / 86400)} ngày`
+    if (delta < 60) return tt("chat.presence.justNow")
+    if (delta < 3600) return tt("chat.presence.minutesAgo", { count: Math.floor(delta / 60) })
+    if (delta < 86400) return tt("chat.presence.hoursAgo", { count: Math.floor(delta / 3600) })
+    return tt("chat.presence.daysAgo", { count: Math.floor(delta / 86400) })
   }
 
   const renderedMessages = sortMessagesByCreatedAt(messages)
-  const activeStatusMeta = activeConversation ? getStatusMeta(activeConversation.status) : null
+  const activeStatusMeta = activeConversation ? getStatusMeta(activeConversation.status, tt) : null
 
   return (
     <Container className="flex h-[calc(100vh-120px)] p-0 overflow-hidden divide-x border border-ui-border-base rounded-lg shadow-sm bg-ui-bg-base">
@@ -529,32 +721,82 @@ const ChatAdminPage = () => {
       <div className="w-[320px] flex flex-col bg-ui-bg-subtle shrink-0">
         <div className="p-4 border-b border-ui-border-base flex flex-col gap-4 bg-ui-bg-base">
           <div className="flex justify-between items-center">
-            <Heading level="h2" className="text-lg">Trò chuyện</Heading>
+            <Heading level="h2" className="text-lg">{tt("chat.sidebar.title")}</Heading>
             <div className="flex items-center gap-2">
               {unreadCount > 0 && <Badge color="red" size="small">{unreadCount > 99 ? "99+" : unreadCount}</Badge>}
-              {wsStatus === "connected" && <Badge color="green" size="small" className="animate-pulse">Connected</Badge>}
-              {wsStatus === "connecting" && <Badge color="orange" size="small">Connecting...</Badge>}
-              {wsStatus === "disconnected" && <Badge color="red" size="small">Disconnected</Badge>}
+              {wsStatus === "connected" && <Badge color="green" size="small" className="animate-pulse">{tt("chat.sidebar.connected")}</Badge>}
+              {wsStatus === "connecting" && <Badge color="orange" size="small">{tt("chat.sidebar.connecting")}</Badge>}
+              {wsStatus === "disconnected" && <Badge color="red" size="small">{tt("chat.sidebar.disconnected")}</Badge>}
+              <Button
+                variant="secondary"
+                size="small"
+                onClick={async () => {
+                  const ok = await testNotification()
+                  if (!ok) {
+                    if (permission === "denied") {
+                      toast.error("Không thể gửi thông báo", {
+                        description: "Quyền thông báo đang bị từ chối. Vui lòng bật thông báo trong cài đặt trình duyệt."
+                      })
+                    } else if (notificationSupport === "unsupported") {
+                      toast.error("Không thể gửi thông báo", {
+                        description: "Trình duyệt không hỗ trợ Web Notification."
+                      })
+                    } else {
+                      toast.error("Không thể gửi thông báo", {
+                        description: "Vui lòng cấp quyền thông báo khi được yêu cầu."
+                      })
+                    }
+                  } else {
+                    toast.success("Thông báo thử đã được gửi", {
+                      description: "Kiểm tra thông báo hệ thống trên thiết bị của bạn."
+                    })
+                  }
+                }}
+              >
+                Gửi thông báo thử
+              </Button>
             </div>
           </div>
 
           <div className="flex flex-col gap-3">
+            {notificationSupport === "unsupported" ? (
+              <div className="rounded-md border border-ui-border-error bg-ui-bg-error p-2">
+                <Text size="xsmall" className="text-ui-fg-error">Trình duyệt không hỗ trợ Web Notification.</Text>
+              </div>
+            ) : permission === "denied" ? (
+              <div className="rounded-md border border-ui-border-error bg-ui-bg-error p-2 flex flex-col gap-1">
+                <Text size="xsmall" className="text-ui-fg-error font-medium">Thông báo đang bị chặn</Text>
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  Vui lòng bật quyền thông báo trong cài đặt trình duyệt (click vào biểu tượng ổ khóa ở thanh địa chỉ) để nhận thông báo tin nhắn mới.
+                </Text>
+              </div>
+            ) : (
+              <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-2">
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  Notification: {permission}. Service worker: {serviceWorkerStatus?.supported ? `${serviceWorkerStatus.registrations} registration, push ${serviceWorkerStatus.pushSubscription ? "on" : "off"}` : "unsupported"}.
+                </Text>
+              </div>
+            )}
             {stats && (
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-2">
-                  <Text size="xsmall" className="text-ui-fg-muted">AI xử lý</Text>
+                  <Text size="xsmall" className="text-ui-fg-muted">Tổng chat</Text>
+                  <Text size="small" weight="plus">{stats.total_conversations}</Text>
+                </div>
+                <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-2">
+                  <Text size="xsmall" className="text-ui-fg-muted">{tt("chat.stats.aiHandled")}</Text>
                   <Text size="small" weight="plus">{stats.ai_handled_conversations}/{stats.total_conversations}</Text>
                 </div>
                 <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-2">
-                  <Text size="xsmall" className="text-ui-fg-muted">AI rate</Text>
+                  <Text size="xsmall" className="text-ui-fg-muted">{tt("chat.stats.aiRate")}</Text>
                   <Text size="small" weight="plus">{stats.ai_resolution_rate}%</Text>
                 </div>
                 <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-2">
-                  <Text size="xsmall" className="text-ui-fg-muted">Escalated</Text>
+                  <Text size="xsmall" className="text-ui-fg-muted">{tt("chat.stats.escalated")}</Text>
                   <Text size="small" weight="plus">{stats.escalated_conversations}</Text>
                 </div>
                 <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle p-2">
-                  <Text size="xsmall" className="text-ui-fg-muted">Esc. time</Text>
+                  <Text size="xsmall" className="text-ui-fg-muted">{tt("chat.stats.escTime")}</Text>
                   <Text size="small" weight="plus">{stats.average_escalation_time_minutes ?? "-"}m</Text>
                 </div>
               </div>
@@ -563,47 +805,34 @@ const ChatAdminPage = () => {
             <div className="relative">
               <SearchIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-ui-fg-muted" />
               <Input
-                placeholder="Tìm khách hàng..."
+                placeholder={tt("chat.sidebar.searchPlaceholder")}
                 className="pl-9 bg-ui-bg-field"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              <Badge
-                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'all' ? 'bg-ui-bg-interactive text-ui-fg-on-inverted hover:bg-ui-bg-interactive-hover' : ''}`}
-                onClick={() => setStatusFilter('all')}
-              >
-                Tất cả
-              </Badge>
-              <Badge
-                color="green"
-                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'BOT_HANDLED' ? 'bg-green-600 text-white hover:bg-green-700' : ''}`}
-                onClick={() => setStatusFilter('BOT_HANDLED')}
-              >
-                Bot hỗ trợ
-              </Badge>
+            <div className="grid grid-cols-3 gap-2">
               <Badge
                 color="orange"
-                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'WAITING_ADMIN' ? 'bg-yellow-500 text-white hover:bg-yellow-600' : ''}`}
+                className={`cursor-pointer justify-center whitespace-nowrap transition-colors ${statusFilter === 'WAITING_ADMIN' ? 'bg-yellow-500 text-white hover:bg-yellow-600' : ''}`}
                 onClick={() => setStatusFilter('WAITING_ADMIN')}
               >
-                Chờ nhân viên
+                🟡 Chờ
               </Badge>
               <Badge
                 color="blue"
-                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'IN_PROGRESS' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
+                className={`cursor-pointer justify-center whitespace-nowrap transition-colors ${statusFilter === 'IN_PROGRESS' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
                 onClick={() => setStatusFilter('IN_PROGRESS')}
               >
-                Nhân viên hỗ trợ
+                🔵 Đang hỗ trợ
               </Badge>
               <Badge
                 color="grey"
-                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'CLOSED' ? 'bg-gray-600 text-white hover:bg-gray-700' : ''}`}
+                className={`cursor-pointer justify-center whitespace-nowrap transition-colors ${statusFilter === 'CLOSED' ? 'bg-gray-700 text-white hover:bg-gray-800' : ''}`}
                 onClick={() => setStatusFilter('CLOSED')}
               >
-                Đã đóng
+                ⚫ Đã đóng
               </Badge>
             </div>
           </div>
@@ -613,16 +842,16 @@ const ChatAdminPage = () => {
           {loading ? (
             <div className="p-6 text-center text-ui-fg-muted flex flex-col items-center gap-2">
               <div className="w-5 h-5 border-2 border-ui-fg-subtle border-t-transparent rounded-full animate-spin" />
-              <Text size="small">Đang tải...</Text>
+              <Text size="small">{tt("common.loading")}</Text>
             </div>
           ) : filteredConversations.length === 0 ? (
             <div className="p-6 text-center text-ui-fg-muted flex flex-col items-center gap-2">
               <MessageSquareIcon className="w-8 h-8 text-ui-fg-disabled" />
-              <Text size="small">Không tìm thấy cuộc trò chuyện nào.</Text>
+              <Text size="small">{tt("chat.sidebar.noConversations")}</Text>
             </div>
           ) : (
             filteredConversations.map(conv => {
-              const statusMeta = getStatusMeta(conv.status)
+              const statusMeta = getStatusMeta(conv.status, tt)
 
               return (
                 <button
@@ -636,7 +865,7 @@ const ChatAdminPage = () => {
                   <div className="flex items-start gap-3">
                     <Avatar
                       src=""
-                      fallback={conv.customer_id ? "C" : "G"}
+                      fallback={conv.customer_id ? tt("chat.customer.customer") : tt("chat.customer.guest")}
                       variant="squared"
                       size="base"
                       className={conv.customer_id ? "bg-blue-100 text-blue-700 mt-1" : "bg-gray-200 text-gray-700 mt-1"}
@@ -644,35 +873,44 @@ const ChatAdminPage = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start mb-1">
                         <Text size="small" weight="plus" className="truncate text-ui-fg-base max-w-[150px]">
-                          {conv.customer_id ? `Khách (${conv.customer_id.substring(0, 8)})` : `Ẩn danh (${conv.guest_id?.substring(0, 8)})`}
+                          {conv.customer_id
+                            ? `${tt("chat.customer.customer")} (${conv.customer_id.substring(0, 8)})`
+                            : `${tt("chat.customer.guest")} (${conv.guest_id?.substring(0, 8)})`}
                         </Text>
                         <div className="flex flex-col items-end">
                           <Text size="xsmall" className="text-ui-fg-muted shrink-0 mt-0.5">
                             {conv.last_message_at ? new Date(conv.last_message_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : ""}
                           </Text>
-                          {/* Presence dot / last seen */}
                           <div className="text-[10px] text-ui-fg-muted mt-1">
-                            {presenceMap[conv.id]?.online ? (
-                              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />Đang online</span>
-                            ) : presenceMap[conv.id]?.last_seen_at ? (
-                              <span className="flex items-center gap-1">{formatLastSeen(presenceMap[conv.id].last_seen_at)}</span>
-                            ) : null}
+                          {presenceMap[conv.id]?.online ? (
+                            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />{tt("chat.presence.online")}</span>
+                          ) : customerTypingMap[conv.id] ? (
+                            <span className="flex items-center gap-1 text-blue-600">✍️ Khách đang nhập...</span>
+                          ) : presenceMap[conv.id]?.last_seen_at ? (
+                            <span className="flex items-center gap-1">{formatLastSeen(presenceMap[conv.id].last_seen_at)}</span>
+                          ) : null}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <Badge size="small" color={statusMeta.badgeColor}>
+	                      <div className="flex items-center justify-between mt-2">
+	                        <Badge size="small" color={statusMeta.badgeColor}>
                           <span className="flex items-center gap-1">
                             <span className={`h-2 w-2 rounded-full ${statusMeta.dotClassName}`} />
                             {statusMeta.label}
                           </span>
                         </Badge>
-                        {Number(conv.admin_metadata?.unread_admin_count || 0) > 0 && (
-                          <Badge size="small" color="red">{conv.admin_metadata?.unread_admin_count}</Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+	                        {Number(conv.admin_metadata?.unread_admin_count || 0) > 0 && (
+	                          <Badge size="small" color="red">{conv.admin_metadata?.unread_admin_count}</Badge>
+	                        )}
+	                      </div>
+                        <Text size="xsmall" className="mt-2 line-clamp-2 text-ui-fg-muted">
+                          {conv.last_message_sender === "bot" && "🤖 "}
+                          {conv.last_message_sender === "admin" && "👨‍💼 "}
+                          {(conv.last_message_sender === "customer" || conv.last_message_sender === "guest") && "👤 "}
+                          {conv.last_message_preview || "Chưa có tin nhắn"}
+                        </Text>
+	                    </div>
+	                  </div>
                 </button>
               )
             })
@@ -681,7 +919,7 @@ const ChatAdminPage = () => {
       </div>
 
       {/* Main Chat Area */}
-      <ChatPanelErrorBoundary>
+      <ChatPanelErrorBoundary strings={errorBoundaryStrings}>
       <div className="flex-1 flex flex-col bg-ui-bg-subtle relative min-w-0">
         {activeConversation ? (
           <>
@@ -689,14 +927,14 @@ const ChatAdminPage = () => {
               <div className="flex items-center gap-4">
                 <Avatar
                   size="large"
-                  fallback={activeConversation.customer_id ? "C" : "G"}
+                  fallback={activeConversation.customer_id ? tt("chat.customer.customer") : tt("chat.customer.guest")}
                   variant="squared"
                   className={activeConversation.customer_id ? "bg-blue-100 text-blue-700" : "bg-gray-200 text-gray-700"}
                 />
                 <div>
                   <div className="flex items-center gap-2">
                     <Heading level="h2" className="text-base m-0 leading-none">
-                      {activeConversation.customer_id ? "Khách hàng đăng nhập" : "Khách hàng ẩn danh"}
+                      {activeConversation.customer_id ? tt("chat.header.loggedInCustomer") : tt("chat.header.anonymousCustomer")}
                     </Heading>
                     <Badge size="small" color={activeStatusMeta?.badgeColor || "grey"}>
                       <span className="flex items-center gap-1">
@@ -708,7 +946,7 @@ const ChatAdminPage = () => {
                       {presenceMap[activeConversation.id]?.online ? (
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-green-500" />
-                          <Text size="xsmall" className="text-ui-fg-muted">Đang online</Text>
+                          <Text size="xsmall" className="text-ui-fg-muted">{tt("chat.presence.online")}</Text>
                         </div>
                       ) : presenceMap[activeConversation.id]?.last_seen_at ? (
                         <div className="flex items-center gap-2">
@@ -718,7 +956,7 @@ const ChatAdminPage = () => {
                       ) : (
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-gray-300" />
-                          <Text size="xsmall" className="text-ui-fg-muted">Offline</Text>
+                          <Text size="xsmall" className="text-ui-fg-muted">{tt("chat.presence.offline")}</Text>
                         </div>
                       )}
                     </div>
@@ -732,27 +970,27 @@ const ChatAdminPage = () => {
               <div className="flex gap-2">
                 {activeConversation.status === "WAITING_ADMIN" && (
                   <Button variant="primary" size="small" onClick={() => updateStatus("IN_PROGRESS")}>
-                    Tiếp nhận hỗ trợ
+                    {tt("chat.actions.takeOver")}
                   </Button>
                 )}
                 {activeConversation.status === "IN_PROGRESS" && (
                   <>
                     <Button variant="secondary" size="small" onClick={() => updateStatus("BOT_HANDLED")}>
-                      Giao lại cho Bot
+                      {tt("chat.actions.returnToBot")}
                     </Button>
                     <Button variant="transparent" size="small" className="text-ui-fg-error hover:bg-ui-bg-error" onClick={() => updateStatus("CLOSED")}>
-                      Đóng phiên
+                      {tt("chat.actions.closeSession")}
                     </Button>
                   </>
                 )}
                 {activeConversation.status === "BOT_HANDLED" && (
-                  <Text size="small" className="text-ui-fg-muted self-center">Bot đang xử lý</Text>
+                  <Text size="small" className="text-ui-fg-muted self-center">{tt("chat.header.botProcessing")}</Text>
                 )}
                 {activeConversation.status === "CLOSED" && (
                   <>
-                    <Text size="small" className="text-ui-fg-muted self-center">Phiên đã đóng</Text>
+                    <Text size="small" className="text-ui-fg-muted self-center">{tt("chat.header.sessionClosed")}</Text>
                     <Button variant="secondary" size="small" onClick={() => updateStatus("IN_PROGRESS")}>
-                      Nhận lại phiên
+                      {tt("chat.actions.reopenSession")}
                     </Button>
                   </>
                 )}
@@ -764,7 +1002,7 @@ const ChatAdminPage = () => {
                 {renderedMessages.length === 0 ? (
                   <div className="text-center text-ui-fg-muted my-auto flex flex-col items-center gap-2">
                     <MessageSquareIcon className="w-12 h-12 text-ui-fg-disabled mb-2" />
-                    <Text>Chưa có tin nhắn nào</Text>
+                    <Text>{tt("chat.messages.noMessages")}</Text>
                   </div>
                 ) : (
                   renderedMessages.map((msg, index) => {
@@ -790,6 +1028,16 @@ const ChatAdminPage = () => {
 
                     cleanText = cleanText.trim();
 
+                    const senderLabel = isAdmin
+                      ? tt("chat.sender.you")
+                      : isBot
+                        ? tt("chat.sender.bot")
+                        : isCustomer
+                          ? tt("chat.sender.customer")
+                          : isGuest
+                            ? tt("chat.sender.guest")
+                            : tt("chat.sender.unknown")
+
                     return (
                       <div key={msg.id} className={`flex gap-3 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}>
                         <div className="w-8 shrink-0 flex flex-col justify-end">
@@ -807,7 +1055,7 @@ const ChatAdminPage = () => {
                             <div className="flex flex-col gap-2">
                               {extractedImages.map((img, i) => (
                                 <a key={i} href={img.url} target="_blank" rel="noopener noreferrer" className="block w-fit rounded-xl overflow-hidden border border-ui-border-base shadow-sm hover:opacity-90 transition-opacity bg-ui-bg-subtle">
-                                  <img src={img.url} alt={img.alt || "Chat image"} className="max-w-[320px] w-full h-auto max-h-[320px] object-cover" />
+                                  <img src={img.url} alt={img.alt || tt("chat.messages.imageAlt")} className="max-w-[320px] w-full h-auto max-h-[320px] object-cover" />
                                 </a>
                               ))}
                             </div>
@@ -842,7 +1090,7 @@ const ChatAdminPage = () => {
 
                           <div className={`flex items-center gap-1 mt-1 px-1 ${isAdmin ? "flex-row-reverse" : "flex-row"}`}>
                             <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
-                              {isAdmin ? "Bạn" : isBot ? "Bot" : isCustomer ? "Khách hàng" : isGuest ? "Khách ẩn danh" : "Khách"}
+                              {senderLabel}
                             </Text>
                             <span className="text-ui-fg-muted text-[10px]">•</span>
                             <Text size="xsmall" className="text-ui-fg-muted">
@@ -854,6 +1102,18 @@ const ChatAdminPage = () => {
                     )
                   })
                 )}
+                {activeConversation && customerTypingMap[activeConversation.id] ? (
+                  <div className="flex justify-start">
+                    <div className="flex items-center gap-2 rounded-2xl border border-ui-border-base bg-ui-bg-base px-4 py-3 text-sm text-ui-fg-muted shadow-sm">
+                      <span className="flex gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </span>
+                      <span>✍️ Khách đang nhập...</span>
+                    </div>
+                  </div>
+                ) : null}
                 <div ref={messagesEndRef} />
               </div>
             </div>
@@ -866,7 +1126,7 @@ const ChatAdminPage = () => {
                     value={input}
                     onChange={handleTextareaInput}
                     onKeyDown={handleKeyDown}
-                    placeholder="Gõ tin nhắn... (Shift + Enter để xuống dòng)"
+                    placeholder={tt("chat.messages.placeholder")}
                     className="flex-1 max-h-[200px] min-h-[52px] resize-none px-4 py-3.5 bg-transparent text-sm focus:outline-none scrollbar-hide text-ui-fg-base placeholder:text-ui-fg-muted"
                     rows={1}
                   />
@@ -885,10 +1145,10 @@ const ChatAdminPage = () => {
                 <div className="h-[52px] flex items-center justify-center bg-ui-bg-subtle rounded-xl border border-ui-border-base">
                   <Text size="small" className="text-ui-fg-muted flex items-center gap-2">
                     <AlertCircleIcon className="w-4 h-4" />
-                    {activeConversation.status === "BOT_HANDLED" && "Bot đang xử lý cuộc trò chuyện này."}
-                    {activeConversation.status === "WAITING_ADMIN" && "Tiếp nhận hỗ trợ để bắt đầu trả lời khách."}
-                    {activeConversation.status === "CLOSED" && "Phiên đã đóng."}
-                    {activeConversation.status === "RESOLVED" && "Phiên đã đóng."}
+                    {activeConversation.status === "BOT_HANDLED" && tt("chat.messages.botProcessing")}
+                    {activeConversation.status === "WAITING_ADMIN" && tt("chat.messages.waitingForAdmin")}
+                    {activeConversation.status === "CLOSED" && tt("chat.messages.sessionClosed")}
+                    {activeConversation.status === "RESOLVED" && tt("chat.messages.sessionClosed")}
                   </Text>
                 </div>
               )}
@@ -899,13 +1159,95 @@ const ChatAdminPage = () => {
             <div className="w-20 h-20 bg-ui-bg-base rounded-3xl flex items-center justify-center shadow-sm border border-ui-border-base mb-6">
               <MessageSquareIcon className="w-10 h-10 text-blue-500" />
             </div>
-            <Heading level="h1" className="text-xl mb-2 text-ui-fg-base">Chọn một cuộc trò chuyện</Heading>
-            <Text className="max-w-xs text-center">Chọn một cuộc trò chuyện từ danh sách bên trái để bắt đầu chat với khách hàng.</Text>
+            <Heading level="h1" className="text-xl mb-2 text-ui-fg-base">{tt("chat.empty.title")}</Heading>
+            <Text className="max-w-xs text-center">{tt("chat.empty.description")}</Text>
           </div>
         )}
       </div>
-      </ChatPanelErrorBoundary>
-    </Container>
+	      </ChatPanelErrorBoundary>
+        <aside className="w-[300px] shrink-0 bg-ui-bg-base p-4 overflow-y-auto">
+          <div className="flex flex-col gap-4">
+            <div>
+              <Heading level="h2" className="text-base">Thông tin khách hàng</Heading>
+              <Text size="small" className="text-ui-fg-muted mt-1">
+                Hồ sơ hội thoại và SLA hỗ trợ
+              </Text>
+            </div>
+
+            {activeConversation ? (
+              <>
+                <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-3">
+                  <Text size="xsmall" className="text-ui-fg-muted">Loại khách</Text>
+                  <Text size="small" weight="plus">
+                    {activeConversation.customer_id ? "Khách đã đăng nhập" : "Khách ẩn danh"}
+                  </Text>
+                  <div className="mt-3 space-y-2">
+                    {activeConversation.customer_id ? (
+                      <>
+                        <div>
+                          <Text size="xsmall" className="text-ui-fg-muted">Customer ID</Text>
+                          <Text size="small" className="break-all">{activeConversation.customer_id}</Text>
+                        </div>
+                        <div>
+                          <Text size="xsmall" className="text-ui-fg-muted">Họ tên</Text>
+                          <Text size="small">{activeConversation.customer_name || "Chưa có dữ liệu"}</Text>
+                        </div>
+                        <div>
+                          <Text size="xsmall" className="text-ui-fg-muted">Email</Text>
+                          <Text size="small">{activeConversation.customer_email || "Chưa có dữ liệu"}</Text>
+                        </div>
+                        <div>
+                          <Text size="xsmall" className="text-ui-fg-muted">Tổng đơn hàng / chi tiêu</Text>
+                          <Text size="small">Chưa đồng bộ vào chat profile</Text>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <Text size="xsmall" className="text-ui-fg-muted">Guest ID</Text>
+                          <Text size="small" className="break-all">{activeConversation.guest_id || "-"}</Text>
+                        </div>
+                        <div>
+                          <Text size="xsmall" className="text-ui-fg-muted">Thiết bị / trình duyệt</Text>
+                          <Text size="small">Chưa thu thập user-agent</Text>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-3">
+                  <Text size="xsmall" className="text-ui-fg-muted">Trạng thái hiện tại</Text>
+                  <Badge size="small" color={activeStatusMeta?.badgeColor || "grey"} className="mt-2">
+                    {activeStatusMeta?.label}
+                  </Badge>
+                  <Text size="small" className="mt-3 text-ui-fg-muted">
+                    {activeStatusMeta?.description}
+                  </Text>
+                  {activeConversation.escalation_reason && (
+                    <div className="mt-3">
+                      <Text size="xsmall" className="text-ui-fg-muted">Lý do chuyển admin</Text>
+                      <Text size="small">{activeConversation.escalation_reason}</Text>
+                    </div>
+                  )}
+                  {activeConversation.admin_metadata?.auto_returned_at && (
+                    <div className="mt-3 rounded-md border border-ui-border-base bg-ui-bg-base p-2">
+                      <Text size="xsmall" className="text-ui-fg-muted">Auto return</Text>
+                      <Text size="small">
+                        {formatLastSeen(activeConversation.admin_metadata.auto_returned_at)}
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 text-center">
+                <Text size="small" className="text-ui-fg-muted">Chọn một cuộc trò chuyện</Text>
+              </div>
+            )}
+          </div>
+        </aside>
+	    </Container>
   )
 }
 
@@ -914,8 +1256,9 @@ const ChatIcon = () => (
 )
 
 export const config = defineRouteConfig({
-  label: "Live Chat",
+  label: "chat.routeLabel",
   icon: ChatIcon,
+  translationNs: "chat",
 })
 
 export default ChatAdminPage

@@ -2,6 +2,7 @@
 
 import { Badge, Heading, Input, Label, Text } from "@modules/common/components/ui"
 import React from "react"
+import { useTranslation } from "react-i18next"
 
 import { applyPromotions } from "@lib/data/cart"
 import { convertToLocale } from "@lib/util/money"
@@ -15,6 +16,7 @@ type DiscountCodeProps = {
 }
 
 const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
+  const { t } = useTranslation()
   const [isOpen, setIsOpen] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
 
@@ -64,7 +66,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
               className="txt-medium text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
               data-testid="add-discount-button"
             >
-              Add Promotion Code(s)
+              {t("checkout.addPromotionCodes", "Add Promotion Code(s)")}
             </button>
 
             {/* <Tooltip content="You can add multiple promotion codes">
@@ -87,7 +89,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
                   variant="secondary"
                   data-testid="discount-apply-button"
                 >
-                  Apply
+                  {t("common.actions.apply")}
                 </SubmitButton>
               </div>
 
@@ -103,7 +105,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
           <div className="w-full flex items-center">
             <div className="flex flex-col w-full">
               <Heading className="txt-medium mb-2">
-                Promotion(s) applied:
+                {t("checkout.promotionsApplied", "Promotion(s) applied:")}
               </Heading>
 
               {promotions.map((promotion) => {
@@ -158,7 +160,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
                       >
                         <Trash size={14} />
                         <span className="sr-only">
-                          Remove discount code from order
+                          {t("cart.remove")}
                         </span>
                       </button>
                     )}

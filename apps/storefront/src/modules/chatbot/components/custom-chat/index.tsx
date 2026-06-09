@@ -4,6 +4,7 @@ import { ChatBubbleLeftRight, PaperPlane, Trash, XMark } from "@medusajs/icons"
 import clsx from "clsx"
 import React, { FormEvent, useEffect, useRef, useState } from "react"
 import { useChatNotifications } from "../../lib/chat-notifications"
+import { storefrontTranslations as i18n, t, formatPresence } from "../../i18n"
 
 type ProductCard = {
   title?: string
@@ -18,32 +19,48 @@ type BotMessage = {
   role: "bot" | "user" | "admin"
   text: string
   created_at: string
+  isSystem?: boolean
   payload?: {
     product?: ProductCard
     products?: ProductCard[]
   }
 }
 
+type ConversationStatus = "BOT_HANDLED" | "WAITING_ADMIN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"
+
 type ApiMessage = {
   id?: string
   text?: string
   payload?: BotMessage["payload"]
+  created_at?: string
 }
+
+type ApiHistoryMessage = {
+  id: string
+  sender_type: "customer" | "guest" | "bot" | "admin"
+  content: string
+  created_at?: string
+  metadata?: {
+    system?: boolean
+    payload?: BotMessage["payload"]
+  } | null
+}
+
+type PresenceEntry = {
+  user_type?: string
+  online?: boolean
+  last_seen_at?: string | null
+}
+
+const suggestedQuestions = i18n.chat.suggestedQuestions
 
 const initialMessages: BotMessage[] = [
   {
     id: "welcome",
     role: "bot",
-    text: "Chào bạn, mình có thể hỗ trợ tìm sản phẩm, xem giá điện thoại, so sánh và kiểm tra đơn hàng khi bạn đã đăng nhập.",
+    text: i18n.chat.welcome,
     created_at: new Date(0).toISOString(),
   },
-]
-
-const suggestedQuestions = [
-  "iPhone 17 Pro Max giá bao nhiêu?",
-  "So sánh iPhone 15 và Samsung S26 Plus",
-  "Top 5 sản phẩm giá cao nhất",
-  "Tôi có đặt đơn nào không?",
 ]
 
 const cleanBotText = (text: string) => {
@@ -289,7 +306,7 @@ const ProductCards = ({ payload }: { payload?: BotMessage["payload"] }) => {
             <div className="h-16 w-16 flex-none overflow-hidden rounded-lg border border-gray-200 bg-white">
               <img
                 src={product.image}
-                alt={product.title || "Product image"}
+                alt={product.title || t("chat.product.imageAlt")}
                 className="h-full w-full object-cover transition duration-300 group-hover:scale-110"
               />
             </div>
@@ -298,10 +315,10 @@ const ProductCards = ({ payload }: { payload?: BotMessage["payload"] }) => {
           )}
           <div className="min-w-0 flex-1 flex flex-col justify-center">
             <p className="line-clamp-1 text-xs font-bold text-gray-900 group-hover:text-black transition">
-              {product.title || "Sản phẩm"}
+              {product.title || t("chat.product.defaultTitle")}
             </p>
             <p className="mt-0.5 text-xs font-bold text-black">
-              {product.price_from || "Chưa cập nhật giá"}
+              {product.price_from || t("chat.product.noPrice")}
             </p>
             {product.discount ? (
               <span className="mt-1 self-start rounded bg-black px-1.5 py-0.5 text-[9px] font-bold text-white uppercase tracking-wider">
@@ -316,6 +333,23 @@ const ProductCards = ({ payload }: { payload?: BotMessage["payload"] }) => {
 }
 
 const ChatMessage = ({ message }: { message: BotMessage }) => {
+  const senderLabel =
+    message.role === "bot"
+      ? "🤖 Trợ lý Medusan"
+      : message.role === "admin"
+        ? "👨‍💼 NV Hỗ trợ"
+        : ""
+
+  if (message.isSystem) {
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[88%] rounded-full border border-gray-200 bg-white px-3 py-1.5 text-center text-[11px] text-gray-500 shadow-sm">
+          {message.text}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       className={clsx(
@@ -333,8 +367,10 @@ const ChatMessage = ({ message }: { message: BotMessage }) => {
               : "border border-gray-200 bg-white text-gray-800 rounded-bl-none shadow-sm"
         )}
       >
-        {message.role === "admin" && (
-          <div className="text-[10px] font-bold text-blue-600 mb-1">NV Hỗ trợ</div>
+        {senderLabel && (
+          <div className={clsx("mb-1 text-[10px] font-bold", message.role === "admin" ? "text-blue-600" : "text-green-700")}>
+            {senderLabel}
+          </div>
         )}
         {message.role === "user" ? (
           <p className="whitespace-pre-line text-xs">{message.text}</p>
@@ -354,11 +390,15 @@ const CustomChat = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [conversationStatus, setConversationStatus] = useState<ConversationStatus>("BOT_HANDLED")
   const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected")
   const [agentOnline, setAgentOnline] = useState(false)
   const [agentLastSeen, setAgentLastSeen] = useState<string | null>(null)
+  const [adminTyping, setAdminTyping] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
   const heartbeatRef = useRef<number | null>(null)
+  const typingStopRef = useRef<number | null>(null)
+  const adminTypingTimeoutRef = useRef<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const isOpenRef = useRef(false)
 
@@ -369,9 +409,18 @@ const CustomChat = () => {
     notify,
     markRead,
   } = useChatNotifications({
-    baseTitle: "Medusan Chat",
-    notificationTitle: "Medusan",
+    baseTitle: t("chat.notifications.baseTitle"),
+    notificationTitle: t("chat.notifications.notificationTitle"),
   })
+
+  const statusLabel =
+    conversationStatus === "IN_PROGRESS"
+      ? "👨‍💼 Nhân viên đang hỗ trợ"
+      : conversationStatus === "WAITING_ADMIN"
+        ? "🟡 Đang chờ nhân viên tiếp nhận"
+        : conversationStatus === "CLOSED"
+          ? "⚫ Phiên đã đóng"
+          : "🤖 Bot đang hỗ trợ"
 
   useEffect(() => {
     isOpenRef.current = isOpen
@@ -397,7 +446,7 @@ const CustomChat = () => {
   }
 
   const handleClearHistory = async () => {
-    if (confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện này không?")) {
+    if (confirm(t("chat.confirm.clearHistory"))) {
       try {
         setIsLoading(true)
         const response = await fetch("/api/chatbot/clear", {
@@ -417,7 +466,7 @@ const CustomChat = () => {
         setMessages(initialMessages)
         setHistoryTrigger(prev => prev + 1)
       } catch (err) {
-        console.error("Failed to clear chat", err)
+        console.error(t("chat.errors.clearFailed"), err)
       } finally {
         setIsLoading(false)
       }
@@ -458,17 +507,21 @@ const CustomChat = () => {
 
       if (data.conversation?.id) {
         handleSetConversationId(data.conversation.id)
+        if (data.conversation.status) {
+          setConversationStatus(data.conversation.status)
+        }
       } else if (storedConversationId) {
         clearConversationId()
         setConversationId(null)
       }
 
       if (data.messages && data.messages.length > 0) {
-        const historyMessages = data.messages.map((m: any) => ({
+        const historyMessages = data.messages.map((m: ApiHistoryMessage) => ({
           id: m.id,
           role: m.sender_type === "customer" || m.sender_type === "guest" ? "user" : m.sender_type === "admin" ? "admin" : "bot",
           text: m.content,
           created_at: m.created_at || new Date().toISOString(),
+          isSystem: Boolean(m.metadata?.system),
           payload: m.metadata?.payload
         }))
         setMessages(mergeMessagesById(historyMessages))
@@ -476,7 +529,7 @@ const CustomChat = () => {
         setMessages(initialMessages)
       }
     } catch (e) {
-      console.error("Failed to load history", e)
+      console.error(t("chat.errors.loadHistoryFailed"), e)
       setMessages(initialMessages)
     } finally {
       setIsInitializing(false)
@@ -550,16 +603,16 @@ const CustomChat = () => {
         // subscribe presence for this guest
         try {
           ws.send(JSON.stringify({ event: "presence.subscribe", data: { guest_id: guestId, user_type: "guest", name: "Guest" } }))
-        } catch (e) { }
+        } catch (_e) { }
         // start heartbeat
         try {
           const id = window.setInterval(() => {
             try {
               ws.send(JSON.stringify({ event: "presence.heartbeat", data: {} }))
-            } catch (e) { }
+            } catch (_e) { }
           }, 15000)
           heartbeatRef.current = id
-        } catch (e) { }
+        } catch (_e) { }
       }
 
       ws.onmessage = (event) => {
@@ -571,6 +624,10 @@ const CustomChat = () => {
             if (msg.sender_type === "admin" || msg.sender_type === "bot") {
               const role = msg.sender_type === "admin" ? "admin" : "bot"
               const text = msg.content || ""
+              setIsLoading(false)
+              if (role === "admin") {
+                setAdminTyping(false)
+              }
               setMessages(current => {
                 if (current.find(m => m.id === msg.id)) return current
                 return mergeMessagesById(current, [{
@@ -578,36 +635,59 @@ const CustomChat = () => {
                   role,
                   text,
                   created_at: msg.created_at || new Date().toISOString(),
+                  isSystem: Boolean(msg.metadata?.system),
                   payload: msg.metadata?.payload
                 }])
               })
               void notify(
                 {
                   id: msg.id,
-                  senderLabel: role === "admin" ? "Admin" : "Bot",
+                  senderLabel: role === "admin" ? t("chat.notifications.senderAdmin") : t("chat.notifications.senderBot"),
                   content: text,
                 },
                 document.hidden || !isOpenRef.current
               )
             }
           }
+          if (payload.event === "conversation.status.updated") {
+            const status = payload.data?.conversation?.status
+            if (status) {
+              setConversationStatus(status)
+              if (status === "BOT_HANDLED" || status === "WAITING_ADMIN" || status === "IN_PROGRESS" || status === "CLOSED") {
+                setIsLoading(false)
+                setAdminTyping(false)
+              }
+            }
+          }
+          if (payload.event === "typing.start" && payload.data?.user_type === "admin") {
+            setAdminTyping(true)
+            if (adminTypingTimeoutRef.current) {
+              window.clearTimeout(adminTypingTimeoutRef.current)
+            }
+            adminTypingTimeoutRef.current = window.setTimeout(() => setAdminTyping(false), 5000)
+          }
+          if (payload.event === "typing.stop" && payload.data?.user_type === "admin") {
+            setAdminTyping(false)
+          }
           if (payload.event === "presence.updated") {
-            const list = payload.data || []
+            const list: PresenceEntry[] = Array.isArray(payload.data) ? payload.data : []
             // find admin presence entries
-            const admins = list.filter((p: any) => p.user_type === "admin")
-            const anyOnline = admins.some((a: any) => a.online)
+            const admins = list.filter((p: PresenceEntry) => p.user_type === "admin")
+            const anyOnline = admins.some((a: PresenceEntry) => a.online)
             setAgentOnline(anyOnline)
             if (!anyOnline && admins.length > 0) {
-              const latest = admins.reduce((acc: any, cur: any) => {
-                return (!acc || new Date(cur.last_seen_at) > new Date(acc.last_seen_at)) ? cur : acc
+              const latest = admins.reduce((acc: PresenceEntry | null, cur: PresenceEntry) => {
+                if (!cur.last_seen_at) return acc
+                if (!acc?.last_seen_at) return cur
+                return new Date(cur.last_seen_at) > new Date(acc.last_seen_at) ? cur : acc
               }, null)
-              setAgentLastSeen(latest ? latest.last_seen_at : null)
+              setAgentLastSeen(latest?.last_seen_at || null)
             } else if (anyOnline) {
               setAgentLastSeen(null)
             }
           }
         } catch (e) {
-          console.error("Failed to parse WS message", e)
+          console.error(t("chat.errors.wsParseFailed"), e)
         }
       }
 
@@ -631,24 +711,87 @@ const CustomChat = () => {
         wsRef.current.onclose = null // prevent reconnect on unmount
         try {
           wsRef.current.send(JSON.stringify({ event: "presence.unsubscribe", data: {} }))
-        } catch (e) { }
+        } catch (_e) { }
         wsRef.current.close()
       }
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current)
         heartbeatRef.current = null
       }
+      if (typingStopRef.current) {
+        window.clearTimeout(typingStopRef.current)
+        typingStopRef.current = null
+      }
+      if (adminTypingTimeoutRef.current) {
+        window.clearTimeout(adminTypingTimeoutRef.current)
+        adminTypingTimeoutRef.current = null
+      }
     }
-  }, [conversationId, notify])
+  }, [conversationId, isInitializing, notify])
 
-  const formatLastSeen = (iso: string | null) => {
-    if (!iso) return ""
-    const then = new Date(iso).getTime()
-    const delta = Math.floor((Date.now() - then) / 1000)
-    if (delta < 60) return "vừa xong"
-    if (delta < 3600) return `cách ${Math.floor(delta / 60)} phút`
-    if (delta < 86400) return `cách ${Math.floor(delta / 3600)} giờ`
-    return `cách ${Math.floor(delta / 86400)} ngày`
+  const emitTyping = (event: "typing.start" | "typing.stop") => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return
+    }
+
+    ws.send(JSON.stringify({
+      event,
+      data: {
+        guest_id: guestId,
+        user_type: "guest",
+        name: "Khách hàng",
+      },
+    }))
+  }
+
+  const handleInputChange = (value: string) => {
+    setInput(value)
+    emitTyping("typing.start")
+
+    if (typingStopRef.current) {
+      window.clearTimeout(typingStopRef.current)
+    }
+
+    typingStopRef.current = window.setTimeout(() => {
+      emitTyping("typing.stop")
+    }, 1200)
+  }
+
+  const cancelSupportRequest = async () => {
+    if (!conversationId || conversationStatus !== "WAITING_ADMIN") {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/chatbot/return-to-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId, guestId }),
+      })
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Không thể hủy yêu cầu hỗ trợ")
+      }
+
+      if (data.conversation?.status) {
+        setConversationStatus(data.conversation.status)
+      }
+
+      if (data.message?.id) {
+        setMessages((current) => mergeMessagesById(current, [{
+          id: data.message.id,
+          role: "bot",
+          text: data.message.content,
+          created_at: data.message.created_at || new Date().toISOString(),
+          isSystem: Boolean(data.message.metadata?.system),
+        }]))
+      }
+      setIsLoading(false)
+    } catch (err) {
+      console.error("Failed to cancel support request", err)
+    }
   }
 
   const sendMessage = async (text: string) => {
@@ -671,6 +814,7 @@ const CustomChat = () => {
 
     setInput("")
     setIsLoading(true)
+    emitTyping("typing.stop")
 
     try {
       const response = await fetch("/api/chatbot", {
@@ -688,6 +832,9 @@ const CustomChat = () => {
 
       if (data.conversationId) {
         handleSetConversationId(data.conversationId)
+      }
+      if (data.conversationStatus) {
+        setConversationStatus(data.conversationStatus)
       }
 
       if (data.userMessage?.id) {
@@ -709,7 +856,6 @@ const CustomChat = () => {
       }
 
       if (data.intent === "HumanHandover") {
-        // Wait for admin response via SSE
         setIsLoading(false)
         return
       }
@@ -718,7 +864,7 @@ const CustomChat = () => {
         (item: ApiMessage): BotMessage => ({
           id: item.id || crypto.randomUUID(),
           role: "bot",
-          text: cleanBotText(item.text || "Mình chưa có phản hồi phù hợp."),
+          text: cleanBotText(item.text || t("chat.errors.noResponse")),
           created_at: item.created_at || new Date().toISOString(),
           payload: item.payload,
         })
@@ -729,7 +875,7 @@ const CustomChat = () => {
           void notify(
             {
               id: botMessage.id,
-              senderLabel: "Bot",
+              senderLabel: t("chat.notifications.senderBot"),
               content: botMessage.text,
             },
             true
@@ -740,11 +886,14 @@ const CustomChat = () => {
       setMessages((current) => {
         return mergeMessagesById(current, botMessages)
       })
+      if (botMessages.length > 0) {
+        setIsLoading(false)
+      }
     } catch (error) {
       const text =
         error instanceof Error
           ? error.message
-          : "Mình đang gặp lỗi kết nối. Bạn thử lại sau nhé."
+          : t("chat.errors.connectionError")
 
       setMessages((current) => [
         ...current,
@@ -755,8 +904,8 @@ const CustomChat = () => {
           created_at: new Date().toISOString(),
         },
       ])
-    } finally {
       setIsLoading(false)
+    } finally {
     }
   }
 
@@ -777,25 +926,26 @@ const CustomChat = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold tracking-wide">Trợ lý Medusa</p>
-                  {wsStatus === "connected" && <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" title="Đã kết nối"></span>}
-                  {wsStatus === "connecting" && <span className="h-2 w-2 rounded-full bg-yellow-500" title="Đang kết nối..."></span>}
-                  {wsStatus === "disconnected" && <span className="h-2 w-2 rounded-full bg-red-500" title="Mất kết nối"></span>}
+                  <p className="text-sm font-bold tracking-wide">{t("chat.header.title")}</p>
+                  {wsStatus === "connected" && <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" title={t("chat.header.connected")}></span>}
+                  {wsStatus === "connecting" && <span className="h-2 w-2 rounded-full bg-yellow-500" title={t("chat.header.connecting")}></span>}
+                  {wsStatus === "disconnected" && <span className="h-2 w-2 rounded-full bg-red-500" title={t("chat.header.disconnected")}></span>}
                 </div>
-                <p className="text-[10px] text-gray-400">
-                  {agentOnline ? (
-                    "Agent online"
-                  ) : agentLastSeen ? (
-                    `Agent ${formatLastSeen(agentLastSeen)}`
-                  ) : (
-                    "Online | AI Support"
-                  )}
-                </p>
+                <p className="text-[10px] text-gray-400">{statusLabel}</p>
+                {conversationStatus === "IN_PROGRESS" && (
+                  <p className="text-[10px] text-gray-500">
+                    {agentOnline
+                      ? t("chat.header.agentOnline")
+                      : agentLastSeen
+                        ? t("chat.header.agentLastSeen", { time: formatPresence(agentLastSeen) })
+                        : "Nhân viên sẽ phản hồi trong giây lát"}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-1">
               <button
-                aria-label="Xóa lịch sử chat"
+                aria-label={t("chat.aria.clearHistory")}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition duration-200"
                 type="button"
                 onClick={handleClearHistory}
@@ -803,7 +953,7 @@ const CustomChat = () => {
                 <Trash className="h-5 w-5" />
               </button>
               <button
-                aria-label="Đóng chat"
+                aria-label={t("chat.aria.closeChat")}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition duration-200"
                 type="button"
                 onClick={() => setIsOpen(false)}
@@ -816,13 +966,30 @@ const CustomChat = () => {
           <div className="flex-1 overflow-y-auto bg-gray-50/50 px-4 py-4">
             <div className="grid gap-4">
               {isInitializing ? (
-                <div className="flex justify-center text-xs text-gray-500 py-4">Đang tải lịch sử...</div>
+                <div className="flex justify-center text-xs text-gray-500 py-4">{t("chat.loading.history")}</div>
               ) : (
-                sortMessagesByCreatedAt(messages).map((message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))
+                <>
+                  {conversationStatus === "WAITING_ADMIN" && (
+                    <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-center text-xs font-semibold text-yellow-800 shadow-sm">
+                      🟡 Đang chờ nhân viên tiếp nhận
+                    </div>
+                  )}
+                  {conversationStatus === "IN_PROGRESS" && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-center text-xs font-semibold text-blue-800 shadow-sm">
+                      👨‍💼 Nhân viên đang hỗ trợ
+                    </div>
+                  )}
+                  {conversationStatus === "CLOSED" && (
+                    <div className="rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-center text-xs font-semibold text-gray-700 shadow-sm">
+                      ⚫ Phiên đã đóng
+                    </div>
+                  )}
+                  {sortMessagesByCreatedAt(messages).map((message) => (
+                    <ChatMessage key={message.id} message={message} />
+                  ))}
+                </>
               )}
-              {isLoading ? (
+              {isLoading && conversationStatus === "BOT_HANDLED" ? (
                 <div className="flex justify-start">
                   <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[11px] text-gray-500 shadow-sm">
                     <span className="flex gap-1">
@@ -830,7 +997,19 @@ const CustomChat = () => {
                       <span className="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "150ms" }} />
                       <span className="h-1.5 w-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "300ms" }} />
                     </span>
-                    <span>Đang suy nghĩ...</span>
+                    <span>🤖 Trợ lý Medusan đang suy nghĩ...</span>
+                  </div>
+                </div>
+              ) : null}
+              {adminTyping ? (
+                <div className="flex justify-start">
+                  <div className="flex items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-4 py-2.5 text-[11px] text-blue-700 shadow-sm">
+                    <span className="flex gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </span>
+                    <span>✍️ Nhân viên đang nhập...</span>
                   </div>
                 </div>
               ) : null}
@@ -839,6 +1018,15 @@ const CustomChat = () => {
           </div>
 
           <div className="border-t border-gray-250 bg-white p-4">
+            {conversationStatus === "WAITING_ADMIN" && (
+              <button
+                className="mb-3 h-8 rounded-full border border-yellow-200 bg-yellow-50 px-3.5 text-xs font-bold text-yellow-800 transition duration-200 hover:border-yellow-500 hover:bg-yellow-100"
+                type="button"
+                onClick={cancelSupportRequest}
+              >
+                Kết thúc yêu cầu hỗ trợ
+              </button>
+            )}
             <div className="mb-3 flex gap-2 overflow-x-auto pb-2">
               {suggestedQuestions.map((question) => (
                 <button
@@ -854,13 +1042,13 @@ const CustomChat = () => {
             <form className="flex gap-2.5" onSubmit={onSubmit}>
               <input
                 className="h-10 min-w-0 flex-1 rounded-full border border-gray-200 bg-gray-50 px-4 text-xs text-gray-800 outline-none transition duration-200 focus:border-black focus:bg-white focus:ring-1 focus:ring-black"
-                placeholder="Nhập câu hỏi cho trợ lý..."
+                placeholder={t("chat.input.placeholder")}
                 value={input}
-                onChange={(event) => setInput(event.target.value)}
+                onChange={(event) => handleInputChange(event.target.value)}
                 disabled={isInitializing}
               />
               <button
-                aria-label="Gửi tin nhắn"
+                aria-label={t("chat.aria.sendMessage")}
                 className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-black text-white transition duration-200 hover:bg-gray-850 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200"
                 type="submit"
                 disabled={!input.trim() || isLoading || isInitializing}
@@ -872,7 +1060,7 @@ const CustomChat = () => {
         </section>
       ) : (
         <button
-          aria-label="Mở chat"
+          aria-label={t("chat.aria.openChat")}
           className="flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-xl transition-all duration-300 hover:scale-110 hover:bg-gray-900 active:scale-95 relative group"
           type="button"
           onClick={() => setIsOpen(true)}

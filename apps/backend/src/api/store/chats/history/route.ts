@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { CHAT_MODULE } from "../../../../modules/chat"
+import { runChatAutoReturn } from "../../../utils/chat-auto-return"
 
 
 export const GET = async (
@@ -21,6 +22,7 @@ export const GET = async (
   }
 
   const chatModuleService = req.scope.resolve(CHAT_MODULE)
+  await runChatAutoReturn(chatModuleService)
   let conversation: any = null
 
   if (conversationId) {

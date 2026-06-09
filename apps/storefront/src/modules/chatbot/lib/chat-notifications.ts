@@ -41,15 +41,6 @@ const playNotificationSound = async () => {
   }
 
   try {
-    const audio = new Audio("/notification.mp3")
-    audio.volume = 0.55
-    await audio.play()
-    return
-  } catch (error) {
-    // Fall back to Web Audio when the optional public/notification.mp3 file is missing.
-  }
-
-  try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
     if (!AudioContextClass) {
       return

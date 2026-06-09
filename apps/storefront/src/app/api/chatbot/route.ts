@@ -20,6 +20,18 @@ type ChatbotPayload = {
   payload?: Record<string, unknown>
 }
 
+type LexMessage = {
+  contentType?: string
+  content?: string
+}
+
+type SavedChatMessage = {
+  id?: string
+  sender_type?: string
+  content?: string
+  created_at?: string
+}
+
 const lexClient = new LexRuntimeV2Client({
   region: process.env.AWS_REGION || "us-east-1",
   credentials: {
@@ -32,16 +44,17 @@ const botId = process.env.LEX_BOT_ID
 const botAliasId = process.env.LEX_BOT_ALIAS_ID
 const localeId = process.env.LEX_LOCALE_ID || "vi_VN"
 
-const normalizeResponseMessages = (messages: any[] = []): ChatbotPayload[] => {
+const normalizeResponseMessages = (messages: LexMessage[] = []): ChatbotPayload[] => {
   const normalized: ChatbotPayload[] = []
   let pendingText = ""
 
   for (const message of messages) {
     if (message.contentType === "PlainText") {
-      pendingText = pendingText ? `${pendingText}\n${message.content}` : message.content
+      const content = message.content || ""
+      pendingText = pendingText ? `${pendingText}\n${content}` : content
     } else if (message.contentType === "CustomPayload") {
       try {
-        const payload = JSON.parse(message.content)
+        const payload = JSON.parse(message.content || "{}")
         normalized.push({
           text: pendingText,
           payload: payload,
@@ -84,10 +97,16 @@ export async function POST(request: NextRequest) {
   const customerToken = cookieStore.get("_medusa_jwt")?.value
 
   const backendUrl = process.env.MEDUSA_BACKEND_URL || process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const preLexEscalation = shouldEscalateToAdmin({
+    message,
+    intent: null,
+    confidence: undefined,
+    failedResponseCount: 0,
+  })
 
   let conversationStatus = "BOT_HANDLED"
   let conversationId = ""
-  let userMessage: any = null
+  let userMessage: SavedChatMessage | null = null
   let failedResponseCount = 0
 
   try {
@@ -112,6 +131,10 @@ export async function POST(request: NextRequest) {
         guest_id: guestId,
         sender_type: customerToken ? "customer" : "guest",
         content: message,
+        ...(preLexEscalation.escalate ? {
+          conversation_status: "WAITING_ADMIN",
+          escalation_reason: preLexEscalation.reason,
+        } : {}),
       })
     })
 
@@ -122,9 +145,12 @@ export async function POST(request: NextRequest) {
         ok: res.ok,
         status: res.status,
         response: data,
+        guest_id: guestId,
+        conversation_id: clientConversationId,
+        sender_type: customerToken ? "customer" : "guest",
       })
       return NextResponse.json(
-        { error: "Không thể lưu tin nhắn vào database.", detail: data },
+        { error: "Xin lỗi, hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau.", detail: data },
         { status: 502 }
       )
     }
@@ -135,29 +161,40 @@ export async function POST(request: NextRequest) {
     }
     failedResponseCount = Number(data.conversation?.admin_metadata?.failed_response_count || 0)
 
-    userMessage = data.message
+    const savedUserMessage = data.message as SavedChatMessage
+    userMessage = savedUserMessage
     console.info(`${LOG_PREFIX} user message saved`, {
-      message_id: userMessage.id,
+      message_id: savedUserMessage.id,
       conversation_id: conversationId,
-      sender_type: userMessage.sender_type,
-      created_at: userMessage.created_at,
+      sender_type: savedUserMessage.sender_type,
+      created_at: savedUserMessage.created_at,
     })
   } catch (err) {
     console.error(`${LOG_PREFIX} user message save threw`, {
       error: err instanceof Error ? err.message : err,
+      stack: err instanceof Error ? err.stack : undefined,
+      guest_id: guestId,
+      conversation_id: clientConversationId,
     })
     return NextResponse.json(
-      { error: "Không thể lưu tin nhắn vào database." },
+      { error: "Xin lỗi, hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau." },
       { status: 502 }
     )
   }
 
-  // If admin is already handling the conversation, keep routing messages to Admin.
-  if (conversationStatus === "WAITING_ADMIN" || conversationStatus === "IN_PROGRESS" || conversationStatus === "RESOLVED" || conversationStatus === "CLOSED") {
+  // If admin is actively handling the conversation or it's closed, skip Bot.
+  // We explicitly allow Bot to continue responding during WAITING_ADMIN.
+  if (conversationStatus === "IN_PROGRESS" || conversationStatus === "RESOLVED" || conversationStatus === "CLOSED") {
+    console.info(`${LOG_PREFIX} [AI_BLOCKED]`, {
+      conversation_id: conversationId,
+      status: conversationStatus,
+    })
     return NextResponse.json({
       guestId,
       conversationId,
+      conversationStatus,
       userMessage,
+      escalation: preLexEscalation.escalate ? preLexEscalation : undefined,
       intent: "HumanHandover",
       messages: [], // Storefront will wait for SSE messages from Admin
     })
@@ -219,7 +256,14 @@ export async function POST(request: NextRequest) {
       confidence,
       failedResponseCount: nextFailedResponseCount,
     })
-    const nextConversationStatus = escalation.escalate ? "WAITING_ADMIN" : "BOT_HANDLED"
+    const isAlreadyWaiting = conversationStatus === "WAITING_ADMIN"
+    const nextConversationStatus = (escalation.escalate || isAlreadyWaiting) ? "WAITING_ADMIN" : "BOT_HANDLED"
+
+    if (escalation.escalate && !isAlreadyWaiting) {
+      messages.unshift({
+        text: "Yêu cầu hỗ trợ đã được gửi tới nhân viên. Trong thời gian chờ, Trợ lý AI vẫn sẽ hỗ trợ bạn.",
+      })
+    }
 
     console.info(`${LOG_PREFIX} escalation decision`, {
       conversation_id: conversationId,
@@ -270,10 +314,12 @@ export async function POST(request: NextRequest) {
             ok: botSaveRes.ok,
             status: botSaveRes.status,
             response: botSaveData,
+            conversation_id: conversationId || clientConversationId,
+            guest_id: guestId,
           })
           return NextResponse.json(
             {
-              error: "Bot trả lời nhưng không lưu được tin nhắn vào database.",
+              error: "Xin lỗi, hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau.",
               guestId,
               conversationId,
               userMessage,
@@ -298,10 +344,13 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error(`${LOG_PREFIX} bot message save threw`, {
         error: err instanceof Error ? err.message : err,
+        stack: err instanceof Error ? err.stack : undefined,
+        conversation_id: conversationId || clientConversationId,
+        guest_id: guestId,
       })
       return NextResponse.json(
         {
-          error: "Bot trả lời nhưng không lưu được tin nhắn vào database.",
+          error: "Xin lỗi, hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau.",
           guestId,
           conversationId,
           userMessage,

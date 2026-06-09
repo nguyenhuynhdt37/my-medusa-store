@@ -20,6 +20,22 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET || "supersecret",
     }
   },
+  // admin: {
+  //   vite: (config) => {
+  //     config.server = {
+  //       ...config.server,
+  //       host: "0.0.0.0",
+  //       port: 7001,
+  //       strictPort: true,
+  //       hmr: {
+  //         protocol: "ws",
+  //         host: "localhost",
+  //         port: 7001,
+  //       }
+  //     }
+  //     return config
+  //   }
+  // },
   modules: [
     {
       resolve: "./src/modules/chat",

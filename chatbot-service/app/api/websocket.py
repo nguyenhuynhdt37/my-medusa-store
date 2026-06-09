@@ -29,7 +29,10 @@ class ConnectionManager:
         self.admin_connections: List[WebSocket] = []
         # presence per conversation_id -> client_key -> PresenceEntry
         self.presence: Dict[str, Dict[str, PresenceEntry]] = {}
+        # typing per conversation_id -> client_key -> typing payload
+        self.typing: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._presence_lock = asyncio.Lock()
+        self._typing_lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, room_id: str):
         await websocket.accept()
@@ -72,6 +75,22 @@ class ConnectionManager:
 
         return delivered
 
+    async def should_notify_admin(self, conversation_id: str) -> bool:
+        if not conversation_id.startswith("01"):
+            return False
+
+        try:
+            async with httpx.AsyncClient(base_url=settings.medusa_base_url, timeout=3.0) as client:
+                response = await client.get(f"/admin/chats/{conversation_id}")
+            if not response.is_success:
+                logger.debug("Failed to resolve conversation status for admin WS notify: %s", response.status_code)
+                return False
+            status = (response.json().get("conversation") or {}).get("status")
+            return status in {"WAITING_ADMIN", "IN_PROGRESS"}
+        except Exception as e:
+            logger.debug(f"Failed checking admin notification status: {e}")
+            return False
+
     async def set_presence(self, conversation_id: str, client_key: str, entry: PresenceEntry):
         async with self._presence_lock:
             if conversation_id not in self.presence:
@@ -103,12 +122,69 @@ class ConnectionManager:
 
     async def broadcast_presence_update(self, conversation_id: str):
         entries = await self.get_presence_list(conversation_id)
+        notify_admin = await self.should_notify_admin(conversation_id)
         payload = {
             "event": "presence.updated",
             "data": [e.dict() for e in entries],
             "conversation_id": conversation_id,
         }
-        await self.broadcast(conversation_id, payload, notify_admin=True)
+        await self.broadcast(conversation_id, payload, notify_admin=notify_admin)
+
+    async def set_typing(self, conversation_id: str, client_key: str, payload: Dict[str, Any]):
+        async with self._typing_lock:
+            if conversation_id not in self.typing:
+                self.typing[conversation_id] = {}
+            self.typing[conversation_id][client_key] = {
+                **payload,
+                "client_key": client_key,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        notify_admin = await self.should_notify_admin(conversation_id)
+        await self.broadcast(conversation_id, {
+            "event": "typing.start",
+            "conversation_id": conversation_id,
+            "data": self.typing[conversation_id][client_key],
+        }, notify_admin=notify_admin)
+
+    async def clear_typing(self, conversation_id: str, client_key: str, payload: Optional[Dict[str, Any]] = None):
+        async with self._typing_lock:
+            conv = self.typing.get(conversation_id, {})
+            typing_payload = conv.pop(client_key, None) or {}
+        notify_admin = await self.should_notify_admin(conversation_id)
+        await self.broadcast(conversation_id, {
+            "event": "typing.stop",
+            "conversation_id": conversation_id,
+            "data": {
+                **typing_payload,
+                **(payload or {}),
+                "client_key": client_key,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+        }, notify_admin=notify_admin)
+
+    async def timeout_typing(self):
+        timeout_seconds = 5
+        now = datetime.now(timezone.utc)
+        expired: List[tuple[str, str, Dict[str, Any]]] = []
+        async with self._typing_lock:
+            for conv_id, conv in list(self.typing.items()):
+                for key, payload in list(conv.items()):
+                    last = datetime.fromisoformat(payload["updated_at"])
+                    if (now - last).total_seconds() > timeout_seconds:
+                        expired.append((conv_id, key, conv.pop(key)))
+
+        for conv_id, key, payload in expired:
+            notify_admin = await self.should_notify_admin(conv_id)
+            await self.broadcast(conv_id, {
+                "event": "typing.stop",
+                "conversation_id": conv_id,
+                "data": {
+                    **payload,
+                    "client_key": key,
+                    "timeout": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                },
+            }, notify_admin=notify_admin)
 
 
 manager = ConnectionManager()
@@ -132,9 +208,19 @@ async def _presence_timeout_loop():
         await asyncio.sleep(5)
 
 
+async def _typing_timeout_loop():
+    while True:
+        try:
+            await manager.timeout_typing()
+        except Exception as e:
+            logger.error(f"Error in typing timeout loop: {e}")
+        await asyncio.sleep(2)
+
+
 @router.on_event("startup")
 async def _start_presence_loop():
     asyncio.create_task(_presence_timeout_loop())
+    asyncio.create_task(_typing_timeout_loop())
 
 
 @router.websocket("/ws/chat/{room_id}")
@@ -170,30 +256,50 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                 )
                 await manager.set_presence(room_id, client_key, entry)
                 # Persist presence to Medusa backend
-                try:
-                    async with httpx.AsyncClient(base_url=settings.medusa_base_url, timeout=5.0) as client:
-                        await client.post(f"/admin/chats/{room_id}/presence", json=entry.dict())
-                except Exception as e:
-                    logger.debug(f"Failed to persist presence to medusa: {e}")
+                if room_id != "admin":
+                    try:
+                        async with httpx.AsyncClient(base_url=settings.medusa_base_url, timeout=5.0) as client:
+                            await client.post(f"/admin/chats/{room_id}/presence", json=entry.dict())
+                    except Exception as e:
+                        logger.debug(f"Failed to persist presence to medusa: {e}")
             elif event == "presence.heartbeat":
                 await manager.heartbeat(room_id, client_key)
                 # update last_seen in Medusa
-                try:
-                    async with httpx.AsyncClient(base_url=settings.medusa_base_url, timeout=5.0) as client:
-                        await client.post(f"/admin/chats/{room_id}/presence", json={"client_key": client_key, "last_seen_at": datetime.now(timezone.utc).isoformat(), "online": True})
-                except Exception as e:
-                    logger.debug(f"Failed to persist heartbeat to medusa: {e}")
+                if room_id != "admin":
+                    try:
+                        async with httpx.AsyncClient(base_url=settings.medusa_base_url, timeout=5.0) as client:
+                            await client.post(f"/admin/chats/{room_id}/presence", json={"client_key": client_key, "last_seen_at": datetime.now(timezone.utc).isoformat(), "online": True})
+                    except Exception as e:
+                        logger.debug(f"Failed to persist heartbeat to medusa: {e}")
+            elif event == "typing.start":
+                target_room_id = pdata.get("conversation_id") if room_id == "admin" else room_id
+                if not target_room_id:
+                    continue
+                await manager.set_typing(target_room_id, client_key, {
+                    "user_type": pdata.get("user_type", "guest"),
+                    "name": pdata.get("name"),
+                })
+            elif event == "typing.stop":
+                target_room_id = pdata.get("conversation_id") if room_id == "admin" else room_id
+                if not target_room_id:
+                    continue
+                await manager.clear_typing(target_room_id, client_key, {
+                    "user_type": pdata.get("user_type", "guest"),
+                    "name": pdata.get("name"),
+                })
             else:
                 # other events currently ignored here
                 pass
     except WebSocketDisconnect:
+        await manager.clear_typing(room_id, client_key)
         await manager.remove_presence(room_id, client_key)
         # mark offline in Medusa
-        try:
-            async with httpx.AsyncClient(base_url=settings.medusa_base_url, timeout=5.0) as client:
-                await client.post(f"/admin/chats/{room_id}/presence", json={"client_key": client_key, "online": False, "last_seen_at": datetime.now(timezone.utc).isoformat()})
-        except Exception as e:
-            logger.debug(f"Failed to persist presence removal to medusa: {e}")
+        if room_id != "admin":
+            try:
+                async with httpx.AsyncClient(base_url=settings.medusa_base_url, timeout=5.0) as client:
+                    await client.post(f"/admin/chats/{room_id}/presence", json={"client_key": client_key, "online": False, "last_seen_at": datetime.now(timezone.utc).isoformat()})
+            except Exception as e:
+                logger.debug(f"Failed to persist presence removal to medusa: {e}")
         manager.disconnect(websocket, room_id)
 
 

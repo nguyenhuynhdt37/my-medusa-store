@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { CHAT_MODULE } from "../../../modules/chat"
-import { ADMIN_VISIBLE_CHAT_STATUSES } from "../../../modules/chat/status"
+import { ADMIN_INBOX_CHAT_STATUSES } from "../../../modules/chat/status"
+import { runChatAutoReturn } from "../../utils/chat-auto-return"
 
 export const GET = async (
   req: MedusaRequest,
@@ -13,6 +14,8 @@ export const GET = async (
   const offset = parseInt((req.query.offset as string) || "0", 10)
   const status = req.query.status as string
 
+  await runChatAutoReturn(chatModuleService)
+
   const allConversations = await chatModuleService.listChatConversations(
     {},
     {
@@ -22,12 +25,26 @@ export const GET = async (
 
   const visibleConversations = allConversations.filter((conversation) => {
     if (status) {
-      return conversation.status === status
+      return ADMIN_INBOX_CHAT_STATUSES.includes(status as any) && conversation.status === status
     }
 
-    return ADMIN_VISIBLE_CHAT_STATUSES.includes(conversation.status)
+    return ADMIN_INBOX_CHAT_STATUSES.includes(conversation.status)
   })
-  const conversations = visibleConversations.slice(offset, offset + limit)
+  const conversations = await Promise.all(
+    visibleConversations.slice(offset, offset + limit).map(async (conversation: any) => {
+      const latestMessages = await chatModuleService.listChatMessages(
+        { conversation_id: conversation.id },
+        { order: { created_at: "DESC" } }
+      )
+      const lastMessage = latestMessages?.[0]
+
+      return {
+        ...conversation,
+        last_message_preview: lastMessage?.content || "",
+        last_message_sender: lastMessage?.sender_type || null,
+      }
+    })
+  )
   const stats = buildChatStats(allConversations)
 
   return res.json({
