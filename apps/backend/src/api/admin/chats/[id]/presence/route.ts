@@ -2,6 +2,8 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { CHAT_MODULE } from "../../../../../modules/chat"
 
+export const AUTHENTICATE = false
+
 const LOG_PREFIX = "[chat:admin:presence]"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -20,7 +22,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     client_key: z.string(),
     user_id: z.string().nullable().optional(),
     guest_id: z.string().nullable().optional(),
-    user_type: z.string(),
+    user_type: z.string().optional(),
     name: z.string().nullable().optional(),
     online: z.boolean().optional(),
     last_seen_at: z.string().optional(),
@@ -34,19 +36,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const chatModuleService = req.scope.resolve(CHAT_MODULE)
 
+  const { last_seen_at: lastSeenStr, ...restData } = parsed.data
+  const last_seen_at = lastSeenStr ? new Date(lastSeenStr) : undefined
+
   // try to find existing presence by conversation + client_key
   const existing = await chatModuleService.listChatPresences({ conversation_id: id, client_key: parsed.data.client_key })
   let presence
   if (existing && existing.length > 0) {
     presence = await chatModuleService.updateChatPresences({
+      ...restData,
       id: existing[0].id,
-      ...parsed.data,
-      conversation_id: id,
+      conversation: id,
+      last_seen_at,
     })
   } else {
     presence = await chatModuleService.createChatPresences({
-      conversation_id: id,
-      ...parsed.data,
+      ...restData,
+      conversation: id,
+      last_seen_at,
     })
   }
 

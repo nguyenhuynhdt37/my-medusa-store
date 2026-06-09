@@ -76,6 +76,13 @@ export const POST = async (
         return res.status(403).json({ error: "Conversation does not belong to this user" })
       }
 
+      if (existingConversation.status === "CLOSED") {
+        console.error(`${LOG_PREFIX} conversation is closed`, {
+          conversation_id: conversationId,
+        })
+        return res.status(400).json({ error: "Conversation is closed" })
+      }
+
       conversation = existingConversation
       console.info(`${LOG_PREFIX} existing conversation accepted`, {
         conversation_id: conversation.id,
@@ -97,12 +104,12 @@ export const POST = async (
     filters.guest_id = guestId
   }
 
-  // Find existing conversation
+  // Find existing active conversation
   if (!conversation) {
     const conversations = await chatModuleService.listChatConversations(filters, {
       order: { last_message_at: "DESC", updated_at: "DESC" },
     })
-    conversation = conversations[0]
+    conversation = conversations.find((c: any) => c.status !== "CLOSED")
     console.info(`${LOG_PREFIX} conversation lookup completed`, {
       filters,
       found: conversations.length,
@@ -110,40 +117,10 @@ export const POST = async (
     })
   }
 
-  // Handle guest to customer merge
-  if (customerId && guestId) {
-    const guestConversations = await chatModuleService.listChatConversations(
-      { guest_id: guestId },
-      { order: { last_message_at: "DESC", updated_at: "DESC" } }
-    )
-    const guestConversation = guestConversations[0]
-    
-    if (guestConversation) {
-      if (conversation && conversation.id !== guestConversation.id) {
-        // Merge messages from guest conversation to customer conversation
-        const guestMessages = await chatModuleService.listChatMessages({ conversation_id: guestConversation.id })
-        for (const msg of guestMessages) {
-          await chatModuleService.updateChatMessages({
-            id: msg.id,
-            conversation_id: conversation.id
-          })
-        }
-        await chatModuleService.deleteChatConversations([guestConversation.id])
-      } else {
-        // Upgrade guest conversation to customer conversation
-        conversation = await chatModuleService.updateChatConversations({
-          id: guestConversation.id,
-          customer_id: customerId,
-          guest_id: null // Unlink guest_id after merging
-        })
-      }
-    }
-  }
-
   if (!conversation) {
     conversation = await chatModuleService.createChatConversations({
       customer_id: customerId,
-      guest_id: customerId ? null : guestId,
+      guest_id: guestId, // Always keep guest_id linked if available
     })
     console.info(`${LOG_PREFIX} conversation created`, {
       conversation_id: conversation.id,

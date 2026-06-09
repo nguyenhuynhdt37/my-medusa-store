@@ -42,6 +42,16 @@ class ConnectionManager:
             self.active_connections[room_id].append(websocket)
             logger.info(f"User connected to conversation: {room_id}")
 
+    def disconnect(self, websocket: WebSocket, room_id: str):
+        if room_id == "admin":
+            if websocket in self.admin_connections:
+                self.admin_connections.remove(websocket)
+                logger.info("Admin disconnected from websocket")
+        else:
+            if room_id in self.active_connections and websocket in self.active_connections[room_id]:
+                self.active_connections[room_id].remove(websocket)
+                logger.info(f"User disconnected from conversation: {room_id}")
+
     async def _safe_broadcast(self, connections: List[WebSocket], message: Any) -> int:
         delivered = 0
         for connection in connections:

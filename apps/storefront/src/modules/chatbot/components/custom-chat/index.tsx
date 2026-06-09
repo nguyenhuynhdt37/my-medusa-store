@@ -1,6 +1,6 @@
 "use client"
 
-import { ChatBubbleLeftRight, PaperPlane, XMark } from "@medusajs/icons"
+import { ChatBubbleLeftRight, PaperPlane, Trash, XMark } from "@medusajs/icons"
 import clsx from "clsx"
 import React, { FormEvent, useEffect, useRef, useState } from "react"
 import { useChatNotifications } from "../../lib/chat-notifications"
@@ -363,6 +363,7 @@ const CustomChat = () => {
   const isOpenRef = useRef(false)
 
   const [guestId, setGuestId] = useState<string>("")
+  const [historyTrigger, setHistoryTrigger] = useState(0)
   const {
     unreadCount,
     notify,
@@ -395,6 +396,34 @@ const CustomChat = () => {
     }
   }
 
+  const handleClearHistory = async () => {
+    if (confirm("Bạn có chắc chắn muốn xóa toàn bộ lịch sử trò chuyện này không?")) {
+      try {
+        setIsLoading(true)
+        const response = await fetch("/api/chatbot/clear", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ guest_id: guestId }),
+        })
+        const data = await response.json()
+        if (response.ok && data.conversation?.id) {
+          handleSetConversationId(data.conversation.id)
+        } else {
+          clearConversationId()
+          setConversationId(null)
+        }
+        setMessages(initialMessages)
+        setHistoryTrigger(prev => prev + 1)
+      } catch (err) {
+        console.error("Failed to clear chat", err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+  }
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })
   }, [messages, isOpen])
@@ -410,54 +439,98 @@ const CustomChat = () => {
     )
   }, [messages])
 
-  // Load history on mount
+  const loadHistory = async () => {
+    if (!guestId) return
+    try {
+      const storedConversationId = getConversationId()
+      console.log("[CHAT_LOCAL_STORAGE]", {
+        chat_guest_id: guestId,
+        chat_conversation_id: storedConversationId,
+      })
+
+      const params = new URLSearchParams({ guest_id: guestId })
+      if (storedConversationId) {
+        params.set("conversation_id", storedConversationId)
+      }
+
+      const response = await fetch(`/api/chatbot/history?${params.toString()}`)
+      const data = await response.json()
+
+      if (data.conversation?.id) {
+        handleSetConversationId(data.conversation.id)
+      } else if (storedConversationId) {
+        clearConversationId()
+        setConversationId(null)
+      }
+
+      if (data.messages && data.messages.length > 0) {
+        const historyMessages = data.messages.map((m: any) => ({
+          id: m.id,
+          role: m.sender_type === "customer" || m.sender_type === "guest" ? "user" : m.sender_type === "admin" ? "admin" : "bot",
+          text: m.content,
+          created_at: m.created_at || new Date().toISOString(),
+          payload: m.metadata?.payload
+        }))
+        setMessages(mergeMessagesById(historyMessages))
+      } else {
+        setMessages(initialMessages)
+      }
+    } catch (e) {
+      console.error("Failed to load history", e)
+      setMessages(initialMessages)
+    } finally {
+      setIsInitializing(false)
+    }
+  }
+
+  // Load history on mount or history trigger changes
+  useEffect(() => {
+    loadHistory()
+  }, [guestId, historyTrigger])
+
+  // Check and merge guest conversation into customer account if logged in
   useEffect(() => {
     if (!guestId) return
 
-    const loadHistory = async () => {
+    const checkAndMergeCustomer = async () => {
       try {
-        const storedConversationId = getConversationId()
-        console.log("[CHAT_LOCAL_STORAGE]", {
-          chat_guest_id: guestId,
-          chat_conversation_id: storedConversationId,
-        })
+        const res = await fetch("/api/chatbot/customer")
+        const data = await res.json()
+        const customer = data.customer
 
-        const params = new URLSearchParams({ guest_id: guestId })
-        if (storedConversationId) {
-          params.set("conversation_id", storedConversationId)
+        if (customer?.id) {
+          const mergedKey = `chat_merged_for_${customer.id}`
+          const isAlreadyMerged = window.localStorage.getItem(mergedKey)
+
+          if (!isAlreadyMerged) {
+            console.log("[CHAT_FRONTEND_MERGE]", {
+              guest_id: guestId,
+              customer_id: customer.id,
+            })
+
+            const mergeRes = await fetch("/api/chatbot/merge-guest", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                guest_id: guestId,
+                customer_id: customer.id,
+              })
+            })
+
+            if (mergeRes.ok) {
+              window.localStorage.setItem(mergedKey, "true")
+              console.log("[CHAT_FRONTEND_MERGE_SUCCESS]")
+              // Reload history to see the merged messages/conversations
+              setHistoryTrigger(prev => prev + 1)
+            }
+          }
         }
-
-        const response = await fetch(`/api/chatbot/history?${params.toString()}`)
-        const data = await response.json()
-
-        if (data.conversation?.id) {
-          handleSetConversationId(data.conversation.id)
-        } else if (storedConversationId) {
-          clearConversationId()
-          setConversationId(null)
-        }
-
-        if (data.messages && data.messages.length > 0) {
-          const historyMessages = data.messages.map((m: any) => ({
-            id: m.id,
-            role: m.sender_type === "customer" || m.sender_type === "guest" ? "user" : m.sender_type === "admin" ? "admin" : "bot",
-            text: m.content,
-            created_at: m.created_at || new Date().toISOString(),
-            payload: m.metadata?.payload
-          }))
-          setMessages(mergeMessagesById(historyMessages))
-        } else {
-          setMessages(initialMessages)
-        }
-      } catch (e) {
-        console.error("Failed to load history", e)
-        setMessages(initialMessages)
-      } finally {
-        setIsInitializing(false)
+      } catch (err) {
+        console.error("Failed checking customer or merging", err)
       }
     }
 
-    loadHistory()
+    checkAndMergeCustomer()
   }, [guestId])
 
   useEffect(() => {
@@ -720,14 +793,24 @@ const CustomChat = () => {
                 </p>
               </div>
             </div>
-            <button
-              aria-label="Đóng chat"
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition duration-200"
-              type="button"
-              onClick={() => setIsOpen(false)}
-            >
-              <XMark className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                aria-label="Xóa lịch sử chat"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition duration-200"
+                type="button"
+                onClick={handleClearHistory}
+              >
+                <Trash className="h-5 w-5" />
+              </button>
+              <button
+                aria-label="Đóng chat"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-white/10 hover:text-white transition duration-200"
+                type="button"
+                onClick={() => setIsOpen(false)}
+              >
+                <XMark className="h-5 w-5" />
+              </button>
+            </div>
           </header>
 
           <div className="flex-1 overflow-y-auto bg-gray-50/50 px-4 py-4">

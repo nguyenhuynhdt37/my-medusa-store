@@ -30,15 +30,16 @@ export const GET = async (
         (customerId && candidate.customer_id === customerId) ||
         (guestId && candidate.guest_id === guestId)
 
-      if (ownsConversation) {
+      if (ownsConversation && candidate.status !== "CLOSED") {
         conversation = candidate
       } else {
         console.log("[CONVERSATION_FOUND]", {
           conversation: null,
           rejected_conversation_id: conversationId,
-          reason: "ownership_mismatch",
+          reason: ownsConversation ? "conversation_closed" : "ownership_mismatch",
           candidate_customer_id: candidate.customer_id,
           candidate_guest_id: candidate.guest_id,
+          status: candidate.status,
         })
       }
     } catch (err) {
@@ -61,7 +62,7 @@ export const GET = async (
     const conversations = await chatModuleService.listChatConversations(filters, {
       order: { last_message_at: "DESC", updated_at: "DESC" },
     })
-    conversation = conversations[0]
+    conversation = conversations.find((c: any) => c.status !== "CLOSED")
 
     console.log("[CONVERSATION_FOUND]", {
       conversation: conversation ? {

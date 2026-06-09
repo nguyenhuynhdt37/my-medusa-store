@@ -1,7 +1,7 @@
-import { Container, Heading, Text, Button, Badge, Input, Avatar, DropdownMenu } from "@medusajs/ui"
+import { Container, Heading, Text, Button, Badge, Input, Avatar } from "@medusajs/ui"
 import { toast } from "@medusajs/ui"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { useEffect, useState, useRef } from "react"
+import { Component, useEffect, useState, useRef, type ErrorInfo, type ReactNode } from "react"
 import ReactMarkdown from "react-markdown"
 import { useChatNotifications } from "../../lib/chat-notifications"
 
@@ -25,6 +25,8 @@ type ChatConversation = {
   }
 }
 
+type ChatStatus = ChatConversation["status"]
+
 type ChatStats = {
   total_conversations: number
   ai_handled_conversations: number
@@ -38,7 +40,7 @@ type IconProps = {
   className?: string
 }
 
-const createIcon = (content: JSX.Element | JSX.Element[]) => ({ className }: IconProps) => (
+const createIcon = (content: ReactNode) => ({ className }: IconProps) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"
@@ -59,10 +61,96 @@ const UserIcon = createIcon(<><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" 
 const AlertCircleIcon = createIcon(<><circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" /></>)
 const MessageSquareIcon = createIcon(<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>)
 
+type ChatPanelErrorBoundaryProps = {
+  children: ReactNode
+}
+
+type ChatPanelErrorBoundaryState = {
+  error: Error | null
+}
+
+class ChatPanelErrorBoundary extends Component<ChatPanelErrorBoundaryProps, ChatPanelErrorBoundaryState> {
+  state: ChatPanelErrorBoundaryState = { error: null }
+
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("CHAT_PANEL_RENDER_ERROR", error, errorInfo)
+  }
+
+  componentDidUpdate(prevProps: ChatPanelErrorBoundaryProps) {
+    if (this.state.error && prevProps.children !== this.props.children) {
+      this.setState({ error: null })
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-ui-bg-subtle text-ui-fg-base p-6">
+          <AlertCircleIcon className="w-10 h-10 text-ui-fg-error" />
+          <Heading level="h2" className="text-lg">Không thể hiển thị khung chat</Heading>
+          <Text size="small" className="text-ui-fg-muted text-center max-w-md">
+            Có lỗi render trong Chat Panel. Xem console với log CHAT_PANEL_RENDER_ERROR để xử lý chi tiết.
+          </Text>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
 const sortMessagesByCreatedAt = (items: ChatMessage[]) => {
   return [...items].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )
+}
+
+const isAdminVisibleConversation = (conversation: ChatConversation) => {
+  return ["BOT_HANDLED", "WAITING_ADMIN", "IN_PROGRESS", "CLOSED"].includes(conversation.status)
+}
+
+const getStatusMeta = (status: ChatStatus) => {
+  switch (status) {
+    case "BOT_HANDLED":
+      return {
+        label: "Bot đang hỗ trợ",
+        description: "AI đang phụ trách cuộc hội thoại này.",
+        badgeColor: "green" as const,
+        dotClassName: "bg-green-500",
+      }
+    case "WAITING_ADMIN":
+      return {
+        label: "Chờ nhân viên tiếp nhận",
+        description: "Khách đang chờ admin tiếp nhận hỗ trợ.",
+        badgeColor: "orange" as const,
+        dotClassName: "bg-yellow-500",
+      }
+    case "IN_PROGRESS":
+      return {
+        label: "Nhân viên đang hỗ trợ",
+        description: "Admin đang hỗ trợ khách. Bot không trả lời trong phiên này.",
+        badgeColor: "blue" as const,
+        dotClassName: "bg-blue-500",
+      }
+    case "CLOSED":
+      return {
+        label: "Đã đóng",
+        description: "Phiên hỗ trợ đã kết thúc.",
+        badgeColor: "grey" as const,
+        dotClassName: "bg-gray-500",
+      }
+    case "RESOLVED":
+      return {
+        label: "Đã đóng",
+        description: "Phiên hỗ trợ đã kết thúc.",
+        badgeColor: "grey" as const,
+        dotClassName: "bg-gray-500",
+      }
+  }
 }
 
 const ChatAdminPage = () => {
@@ -76,7 +164,7 @@ const ChatAdminPage = () => {
   const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "disconnected">("disconnected")
   const wsRef = useRef<WebSocket | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<"all" | "WAITING_ADMIN" | "IN_PROGRESS" | "RESOLVED">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "BOT_HANDLED" | "WAITING_ADMIN" | "IN_PROGRESS" | "CLOSED">("all")
   const [stats, setStats] = useState<ChatStats | null>(null)
   const {
     unreadCount,
@@ -90,6 +178,47 @@ const ChatAdminPage = () => {
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const activeConversationRef = useRef<ChatConversation | null>(null)
+  const lastActiveConvIdRef = useRef<string | null>(null)
+
+  const getSidebarConversations = (list: ChatConversation[]) => {
+    let result = list
+
+    if (searchQuery) {
+      const normalizedSearch = searchQuery.toLowerCase()
+      result = result.filter(c =>
+        (c.customer_id && c.customer_id.toLowerCase().includes(normalizedSearch)) ||
+        (c.guest_id && c.guest_id.toLowerCase().includes(normalizedSearch))
+      )
+    }
+
+    if (statusFilter !== "all") {
+      result = result.filter(c => c.status === statusFilter)
+    }
+
+    return result
+  }
+
+  const syncActiveConversationFromList = (list: ChatConversation[]) => {
+    const current = activeConversationRef.current
+    if (!current) {
+      return
+    }
+
+    const updated = list.find((c) => c.id === current.id)
+    const sidebarList = getSidebarConversations(list)
+
+    if (updated && sidebarList.some((c) => c.id === updated.id)) {
+      if (
+        updated.status !== current.status ||
+        JSON.stringify(updated.admin_metadata) !== JSON.stringify(current.admin_metadata)
+      ) {
+        setActiveConversation(updated)
+      }
+      return
+    }
+
+    setActiveConversation(sidebarList[0] || null)
+  }
 
   useEffect(() => {
     activeConversationRef.current = activeConversation
@@ -103,23 +232,24 @@ const ChatAdminPage = () => {
   }, [])
 
   useEffect(() => {
-    let result = conversations
-    if (searchQuery) {
-      result = result.filter(c =>
-        (c.customer_id && c.customer_id.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (c.guest_id && c.guest_id.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    }
-    if (statusFilter !== "all") {
-      result = result.filter(c => c.status === statusFilter)
-    }
+    const result = getSidebarConversations(conversations)
     setFilteredConversations(result)
+
+    if (
+      activeConversationRef.current &&
+      !result.some((conversation) => conversation.id === activeConversationRef.current?.id)
+    ) {
+      setActiveConversation(result[0] || null)
+    }
   }, [conversations, searchQuery, statusFilter])
 
   useEffect(() => {
     if (activeConversation) {
-      setMessages([])
-      fetchMessages(activeConversation.id)
+      if (activeConversation.id !== lastActiveConvIdRef.current) {
+        lastActiveConvIdRef.current = activeConversation.id
+        setMessages([])
+        fetchMessages(activeConversation.id)
+      }
       // fetch persisted presence for this conversation
       const fetchPresence = async () => {
         try {
@@ -141,6 +271,8 @@ const ChatAdminPage = () => {
         }
       }
       void fetchPresence()
+    } else {
+      lastActiveConvIdRef.current = null
     }
   }, [activeConversation])
 
@@ -256,10 +388,12 @@ const ChatAdminPage = () => {
     try {
       const res = await fetch("/admin/chats")
       const data = await res.json()
-      setConversations(data.conversations || [])
+      const list = data.conversations || []
+      setConversations(list)
       setStats(data.stats || null)
+      syncActiveConversationFromList(list)
     } catch (err) {
-      toast({ title: "Lỗi", description: "Không thể tải danh sách chat", variant: "error" })
+      toast.error("Lỗi", { description: "Không thể tải danh sách chat" })
     } finally {
       if (showLoading) setLoading(false)
     }
@@ -289,13 +423,13 @@ const ChatAdminPage = () => {
         return sortMessagesByCreatedAt(Array.from(mergedById.values()))
       })
     } catch (err) {
-      toast({ title: "Lỗi", description: "Không thể tải tin nhắn", variant: "error" })
+      toast.error("Lỗi", { description: "Không thể tải tin nhắn" })
     }
   }
 
   const sendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault()
-    if (!input.trim() || !activeConversation) return
+    if (!input.trim() || !activeConversation || activeConversation.status !== "IN_PROGRESS") return
 
     const tempInput = input.trim()
     setInput("")
@@ -310,30 +444,56 @@ const ChatAdminPage = () => {
         body: JSON.stringify({ content: tempInput }),
       })
     } catch (err) {
-      toast({ title: "Lỗi", description: "Gửi tin nhắn thất bại", variant: "error" })
+      toast.error("Lỗi", { description: "Gửi tin nhắn thất bại" })
     }
   }
 
-  const updateStatus = async (status: "WAITING_ADMIN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED" | "BOT_HANDLED") => {
+  const updateStatus = async (status: "WAITING_ADMIN" | "IN_PROGRESS" | "CLOSED" | "BOT_HANDLED") => {
     if (!activeConversation) return
     const endpoint =
       status === "WAITING_ADMIN"
         ? "handover"
         : status === "IN_PROGRESS"
           ? "assign"
-          : status === "RESOLVED"
-            ? "resolve"
-            : status === "BOT_HANDLED"
-              ? "bot"
-              : "close"
+          : status === "BOT_HANDLED"
+            ? "return-to-bot"
+            : "close"
 
     try {
-      await fetch(`/admin/chats/${activeConversation.id}/${endpoint}`, { method: "POST" })
-      setActiveConversation({ ...activeConversation, status })
-      toast({ title: "Thành công", description: "Cập nhật trạng thái thành công" })
-      fetchConversations(false)
+      const res = await fetch(`/admin/chats/${activeConversation.id}/${endpoint}`, { method: "POST" })
+      const data = await res.json().catch(() => null)
+      console.log("ACTION_RESPONSE", data)
+      console.log("SELECTED_CONVERSATION", activeConversationRef.current)
+
+      if (!res.ok) {
+        throw new Error(data?.error || `Admin chat action failed with status ${res.status}`)
+      }
+
+      const updatedConversation = data?.conversation as ChatConversation | undefined
+      if (!updatedConversation) {
+        throw new Error("Admin chat action response is missing conversation")
+      }
+
+      const nextConversations = isAdminVisibleConversation(updatedConversation)
+        ? conversations.map((conversation) =>
+          conversation.id === updatedConversation.id ? updatedConversation : conversation
+        )
+        : conversations.filter((conversation) => conversation.id !== updatedConversation.id)
+
+      setConversations(nextConversations)
+
+      const sidebarList = getSidebarConversations(nextConversations)
+      if (sidebarList.some((conversation) => conversation.id === updatedConversation.id)) {
+        setActiveConversation(updatedConversation)
+      } else {
+        setActiveConversation(sidebarList[0] || null)
+      }
+
+      toast.success("Thành công", { description: "Cập nhật trạng thái thành công" })
+      void fetchConversations(false)
     } catch (err) {
-      toast({ title: "Lỗi", description: "Không thể cập nhật", variant: "error" })
+      console.error("CHAT_ACTION_ERROR", err)
+      toast.error("Lỗi", { description: "Không thể cập nhật" })
     }
   }
 
@@ -361,6 +521,7 @@ const ChatAdminPage = () => {
   }
 
   const renderedMessages = sortMessagesByCreatedAt(messages)
+  const activeStatusMeta = activeConversation ? getStatusMeta(activeConversation.status) : null
 
   return (
     <Container className="flex h-[calc(100vh-120px)] p-0 overflow-hidden divide-x border border-ui-border-base rounded-lg shadow-sm bg-ui-bg-base">
@@ -417,25 +578,32 @@ const ChatAdminPage = () => {
                 Tất cả
               </Badge>
               <Badge
-                color="blue"
-                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'WAITING_ADMIN' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
-                onClick={() => setStatusFilter('WAITING_ADMIN')}
+                color="green"
+                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'BOT_HANDLED' ? 'bg-green-600 text-white hover:bg-green-700' : ''}`}
+                onClick={() => setStatusFilter('BOT_HANDLED')}
               >
-                Chờ admin
+                Bot hỗ trợ
               </Badge>
               <Badge
                 color="orange"
-                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'IN_PROGRESS' ? 'bg-orange-600 text-white hover:bg-orange-700' : ''}`}
+                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'WAITING_ADMIN' ? 'bg-yellow-500 text-white hover:bg-yellow-600' : ''}`}
+                onClick={() => setStatusFilter('WAITING_ADMIN')}
+              >
+                Chờ nhân viên
+              </Badge>
+              <Badge
+                color="blue"
+                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'IN_PROGRESS' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
                 onClick={() => setStatusFilter('IN_PROGRESS')}
               >
-                Đang xử lý
+                Nhân viên hỗ trợ
               </Badge>
               <Badge
                 color="grey"
-                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'RESOLVED' ? 'bg-gray-600 text-white hover:bg-gray-700' : ''}`}
-                onClick={() => setStatusFilter('RESOLVED')}
+                className={`cursor-pointer whitespace-nowrap transition-colors ${statusFilter === 'CLOSED' ? 'bg-gray-600 text-white hover:bg-gray-700' : ''}`}
+                onClick={() => setStatusFilter('CLOSED')}
               >
-                Đã xử lý
+                Đã đóng
               </Badge>
             </div>
           </div>
@@ -453,59 +621,67 @@ const ChatAdminPage = () => {
               <Text size="small">Không tìm thấy cuộc trò chuyện nào.</Text>
             </div>
           ) : (
-            filteredConversations.map(conv => (
-              <button
-                key={conv.id}
-                onClick={() => setActiveConversation(conv)}
-                className={`w-full text-left p-4 border-b border-ui-border-base transition-colors relative ${activeConversation?.id === conv.id
-                  ? "bg-ui-bg-base before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-blue-500"
-                  : "hover:bg-ui-bg-base-hover"
-                  }`}
-              >
-                <div className="flex items-start gap-3">
-                  <Avatar
-                    src=""
-                    fallback={conv.customer_id ? "C" : "G"}
-                    variant="squared"
-                    size="base"
-                    className={conv.customer_id ? "bg-blue-100 text-blue-700 mt-1" : "bg-gray-200 text-gray-700 mt-1"}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start mb-1">
-                      <Text size="small" weight="plus" className="truncate text-ui-fg-base max-w-[150px]">
-                        {conv.customer_id ? `Khách (${conv.customer_id.substring(0, 8)})` : `Ẩn danh (${conv.guest_id?.substring(0, 8)})`}
-                      </Text>
-                      <div className="flex flex-col items-end">
-                        <Text size="xsmall" className="text-ui-fg-muted shrink-0 mt-0.5">
-                          {conv.last_message_at ? new Date(conv.last_message_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : ""}
+            filteredConversations.map(conv => {
+              const statusMeta = getStatusMeta(conv.status)
+
+              return (
+                <button
+                  key={conv.id}
+                  onClick={() => setActiveConversation(conv)}
+                  className={`w-full text-left p-4 border-b border-ui-border-base transition-colors relative ${activeConversation?.id === conv.id
+                    ? "bg-ui-bg-base before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-blue-500"
+                    : "hover:bg-ui-bg-base-hover"
+                    }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <Avatar
+                      src=""
+                      fallback={conv.customer_id ? "C" : "G"}
+                      variant="squared"
+                      size="base"
+                      className={conv.customer_id ? "bg-blue-100 text-blue-700 mt-1" : "bg-gray-200 text-gray-700 mt-1"}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-1">
+                        <Text size="small" weight="plus" className="truncate text-ui-fg-base max-w-[150px]">
+                          {conv.customer_id ? `Khách (${conv.customer_id.substring(0, 8)})` : `Ẩn danh (${conv.guest_id?.substring(0, 8)})`}
                         </Text>
-                        {/* Presence dot / last seen */}
-                        <div className="text-[10px] text-ui-fg-muted mt-1">
-                          {presenceMap[conv.id]?.online ? (
-                            <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />Đang online</span>
-                          ) : presenceMap[conv.id]?.last_seen_at ? (
-                            <span className="flex items-center gap-1">{formatLastSeen(presenceMap[conv.id].last_seen_at)}</span>
-                          ) : null}
+                        <div className="flex flex-col items-end">
+                          <Text size="xsmall" className="text-ui-fg-muted shrink-0 mt-0.5">
+                            {conv.last_message_at ? new Date(conv.last_message_at).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' }) : ""}
+                          </Text>
+                          {/* Presence dot / last seen */}
+                          <div className="text-[10px] text-ui-fg-muted mt-1">
+                            {presenceMap[conv.id]?.online ? (
+                              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" />Đang online</span>
+                            ) : presenceMap[conv.id]?.last_seen_at ? (
+                              <span className="flex items-center gap-1">{formatLastSeen(presenceMap[conv.id].last_seen_at)}</span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-2">
-                      <Badge size="small" color={conv.status === "WAITING_ADMIN" ? "blue" : conv.status === "IN_PROGRESS" ? "orange" : "grey"}>
-                        {conv.status === "WAITING_ADMIN" ? "Chờ admin" : conv.status === "IN_PROGRESS" ? "Đang xử lý" : "Đã xử lý"}
-                      </Badge>
-                      {Number(conv.admin_metadata?.unread_admin_count || 0) > 0 && (
-                        <Badge size="small" color="red">{conv.admin_metadata?.unread_admin_count}</Badge>
-                      )}
+                      <div className="flex items-center justify-between mt-2">
+                        <Badge size="small" color={statusMeta.badgeColor}>
+                          <span className="flex items-center gap-1">
+                            <span className={`h-2 w-2 rounded-full ${statusMeta.dotClassName}`} />
+                            {statusMeta.label}
+                          </span>
+                        </Badge>
+                        {Number(conv.admin_metadata?.unread_admin_count || 0) > 0 && (
+                          <Badge size="small" color="red">{conv.admin_metadata?.unread_admin_count}</Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
-            ))
+                </button>
+              )
+            })
           )}
         </div>
       </div>
 
       {/* Main Chat Area */}
+      <ChatPanelErrorBoundary>
       <div className="flex-1 flex flex-col bg-ui-bg-subtle relative min-w-0">
         {activeConversation ? (
           <>
@@ -522,6 +698,12 @@ const ChatAdminPage = () => {
                     <Heading level="h2" className="text-base m-0 leading-none">
                       {activeConversation.customer_id ? "Khách hàng đăng nhập" : "Khách hàng ẩn danh"}
                     </Heading>
+                    <Badge size="small" color={activeStatusMeta?.badgeColor || "grey"}>
+                      <span className="flex items-center gap-1">
+                        <span className={`h-2 w-2 rounded-full ${activeStatusMeta?.dotClassName || "bg-gray-500"}`} />
+                        {activeStatusMeta?.label}
+                      </span>
+                    </Badge>
                     <div>
                       {presenceMap[activeConversation.id]?.online ? (
                         <div className="flex items-center gap-2">
@@ -549,24 +731,30 @@ const ChatAdminPage = () => {
               </div>
               <div className="flex gap-2">
                 {activeConversation.status === "WAITING_ADMIN" && (
-                  <Button variant="secondary" size="small" onClick={() => updateStatus("IN_PROGRESS")}>
-                    Nhận hỗ trợ
+                  <Button variant="primary" size="small" onClick={() => updateStatus("IN_PROGRESS")}>
+                    Tiếp nhận hỗ trợ
                   </Button>
                 )}
                 {activeConversation.status === "IN_PROGRESS" && (
-                  <Button variant="secondary" size="small" onClick={() => updateStatus("BOT_HANDLED")}>
-                    Giao cho Bot
-                  </Button>
+                  <>
+                    <Button variant="secondary" size="small" onClick={() => updateStatus("BOT_HANDLED")}>
+                      Giao lại cho Bot
+                    </Button>
+                    <Button variant="transparent" size="small" className="text-ui-fg-error hover:bg-ui-bg-error" onClick={() => updateStatus("CLOSED")}>
+                      Đóng phiên
+                    </Button>
+                  </>
                 )}
-                {activeConversation.status !== "RESOLVED" && activeConversation.status !== "CLOSED" && (
-                  <Button variant="secondary" size="small" onClick={() => updateStatus("RESOLVED")}>
-                    Đã xử lý
-                  </Button>
+                {activeConversation.status === "BOT_HANDLED" && (
+                  <Text size="small" className="text-ui-fg-muted self-center">Bot đang xử lý</Text>
                 )}
-                {activeConversation.status !== "CLOSED" && (
-                  <Button variant="transparent" size="small" className="text-ui-fg-error hover:bg-ui-bg-error" onClick={() => updateStatus("CLOSED")}>
-                    Đóng phiên
-                  </Button>
+                {activeConversation.status === "CLOSED" && (
+                  <>
+                    <Text size="small" className="text-ui-fg-muted self-center">Phiên đã đóng</Text>
+                    <Button variant="secondary" size="small" onClick={() => updateStatus("IN_PROGRESS")}>
+                      Nhận lại phiên
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -589,7 +777,7 @@ const ChatAdminPage = () => {
 
                     const extractedImages: { alt: string, url: string }[] = [];
                     const markdownImgRegex = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
-                    let cleanText = msg.content.replace(markdownImgRegex, (match, alt, url) => {
+                    let cleanText = msg.content.replace(markdownImgRegex, (_match, alt, url) => {
                       extractedImages.push({ alt, url });
                       return '';
                     });
@@ -634,17 +822,17 @@ const ChatAdminPage = () => {
                               }`}>
                               <ReactMarkdown
                                 components={{
-                                  h1: ({ node, ...props }) => <h1 className="text-lg font-bold mt-3 mb-2" {...props} />,
-                                  h2: ({ node, ...props }) => <h2 className="text-base font-bold mt-2 mb-1" {...props} />,
-                                  h3: ({ node, ...props }) => <h3 className="text-sm font-bold mt-2 mb-1" {...props} />,
-                                  p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
-                                  ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
-                                  ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
-                                  li: ({ node, ...props }) => <li className="mb-1" {...props} />,
-                                  a: ({ node, ...props }) => <a className="text-blue-500 hover:underline break-all" target="_blank" rel="noopener noreferrer" {...props} />,
-                                  strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
-                                  code: ({ node, ...props }) => <code className="bg-black/10 dark:bg-white/10 rounded px-1 py-0.5 text-[13px]" {...props} />,
-                                  pre: ({ node, ...props }) => <pre className="bg-black/10 dark:bg-white/10 rounded-lg p-3 overflow-x-auto my-2 text-[13px]" {...props} />
+                                  h1: ({ node: _node, ...props }) => <h1 className="text-lg font-bold mt-3 mb-2" {...props} />,
+                                  h2: ({ node: _node, ...props }) => <h2 className="text-base font-bold mt-2 mb-1" {...props} />,
+                                  h3: ({ node: _node, ...props }) => <h3 className="text-sm font-bold mt-2 mb-1" {...props} />,
+                                  p: ({ node: _node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+                                  ul: ({ node: _node, ...props }) => <ul className="list-disc pl-5 mb-2 space-y-1" {...props} />,
+                                  ol: ({ node: _node, ...props }) => <ol className="list-decimal pl-5 mb-2 space-y-1" {...props} />,
+                                  li: ({ node: _node, ...props }) => <li className="mb-1" {...props} />,
+                                  a: ({ node: _node, ...props }) => <a className="text-blue-500 hover:underline break-all" target="_blank" rel="noopener noreferrer" {...props} />,
+                                  strong: ({ node: _node, ...props }) => <strong className="font-semibold" {...props} />,
+                                  code: ({ node: _node, ...props }) => <code className="bg-black/10 dark:bg-white/10 rounded px-1 py-0.5 text-[13px]" {...props} />,
+                                  pre: ({ node: _node, ...props }) => <pre className="bg-black/10 dark:bg-white/10 rounded-lg p-3 overflow-x-auto my-2 text-[13px]" {...props} />
                                 }}
                               >
                                 {cleanText}
@@ -671,7 +859,7 @@ const ChatAdminPage = () => {
             </div>
 
             <div className="p-4 border-t border-ui-border-base bg-ui-bg-base shrink-0">
-              {activeConversation.status !== "CLOSED" && activeConversation.status !== "RESOLVED" ? (
+              {activeConversation.status === "IN_PROGRESS" ? (
                 <div className="relative flex items-end border border-ui-border-base rounded-xl bg-ui-bg-field focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all shadow-sm overflow-hidden">
                   <textarea
                     ref={textareaRef}
@@ -697,7 +885,10 @@ const ChatAdminPage = () => {
                 <div className="h-[52px] flex items-center justify-center bg-ui-bg-subtle rounded-xl border border-ui-border-base">
                   <Text size="small" className="text-ui-fg-muted flex items-center gap-2">
                     <AlertCircleIcon className="w-4 h-4" />
-                    Phiên hội thoại này đã bị đóng.
+                    {activeConversation.status === "BOT_HANDLED" && "Bot đang xử lý cuộc trò chuyện này."}
+                    {activeConversation.status === "WAITING_ADMIN" && "Tiếp nhận hỗ trợ để bắt đầu trả lời khách."}
+                    {activeConversation.status === "CLOSED" && "Phiên đã đóng."}
+                    {activeConversation.status === "RESOLVED" && "Phiên đã đóng."}
                   </Text>
                 </div>
               )}
@@ -708,11 +899,12 @@ const ChatAdminPage = () => {
             <div className="w-20 h-20 bg-ui-bg-base rounded-3xl flex items-center justify-center shadow-sm border border-ui-border-base mb-6">
               <MessageSquareIcon className="w-10 h-10 text-blue-500" />
             </div>
-            <Heading level="h1" className="text-xl mb-2 text-ui-fg-base">Trung tâm hỗ trợ</Heading>
-            <Text className="max-w-xs text-center">Chọn một cuộc hội thoại từ danh sách bên trái để bắt đầu chat với khách hàng.</Text>
+            <Heading level="h1" className="text-xl mb-2 text-ui-fg-base">Chọn một cuộc trò chuyện</Heading>
+            <Text className="max-w-xs text-center">Chọn một cuộc trò chuyện từ danh sách bên trái để bắt đầu chat với khách hàng.</Text>
           </div>
         )}
       </div>
+      </ChatPanelErrorBoundary>
     </Container>
   )
 }
