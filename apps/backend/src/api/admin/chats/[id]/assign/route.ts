@@ -1,25 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { CHAT_MODULE } from "../../../../../modules/chat"
-
-const broadcastEvent = async (conversationId: string, event: string, data: any) => {
-  try {
-    await fetch("http://chatbot-service:8080/api/broadcast", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation_id: conversationId,
-        event,
-        data,
-        notify_admin: true,
-      }),
-    })
-  } catch (err) {
-    console.error(`[ADMIN_TAKEOVER_BROADCAST_FAILED] ${event}`, {
-      conversation_id: conversationId,
-      error: err instanceof Error ? err.message : err,
-    })
-  }
-}
+import { broadcastChatEvent } from "../../../../utils/chat-realtime"
 
 export const POST = async (
   req: MedusaRequest,
@@ -60,8 +41,8 @@ export const POST = async (
     },
   })
 
-  await broadcastEvent(id, "conversation.status.updated", { conversation })
-  await broadcastEvent(id, "chat.message.created", { ...message, conversation_id: id })
+  await broadcastChatEvent(id, "conversation.status.updated", { conversation }, true)
+  await broadcastChatEvent(id, "chat.message.created", { ...message, conversation_id: id }, true)
 
   return res.json({ conversation })
 }

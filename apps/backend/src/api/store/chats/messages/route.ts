@@ -3,6 +3,8 @@ import { z } from "zod"
 import { CHAT_MODULE } from "../../../../modules/chat"
 import { CHAT_STATUSES, isAdminVisibleChatStatus } from "../../../../modules/chat/status"
 import { runChatAutoReturn } from "../../../utils/chat-auto-return"
+import { syncGuestChatToCustomer } from "../../../utils/chat-guest-merge"
+import { broadcastChatEvent } from "../../../utils/chat-realtime"
 
 const LOG_PREFIX = "[chat:store:messages]"
 
@@ -25,6 +27,9 @@ export const POST = async (
     escalation_reason: z.string().optional().nullable(),
     ai_confidence: z.number().optional().nullable(),
     failed_response_count: z.number().int().optional().nullable(),
+    channel: z.enum(["WEB", "MESSENGER"]).optional(),
+    external_user_id: z.string().optional().nullable(),
+    external_message_id: z.string().optional().nullable(),
   })
 
   const parsed = schema.safeParse(req.body)
@@ -40,6 +45,9 @@ export const POST = async (
   const customerId = (req as any).auth_context?.actor_type === "customer" ? (req as any).auth_context.actor_id : null
   const guestId = data.guest_id || null
   const conversationId = data.conversation_id || null
+  const channel = data.channel || "WEB"
+  const externalUserId = data.external_user_id || null
+  let mergeResult = null as Awaited<ReturnType<typeof syncGuestChatToCustomer>> | null
 
   console.info(`${LOG_PREFIX} payload received`, {
     conversation_id: conversationId,
@@ -49,6 +57,8 @@ export const POST = async (
     content_length: data.content.length,
     conversation_status: data.conversation_status,
     escalation_reason: data.escalation_reason,
+    channel,
+    external_user_id: externalUserId,
   })
 
   if (!customerId && !guestId) {
@@ -58,6 +68,13 @@ export const POST = async (
       customer_id: customerId,
     })
     return res.status(400).json({ error: "Missing customer_id or guest_id" })
+  }
+
+  if (customerId && guestId) {
+    mergeResult = await syncGuestChatToCustomer(chatModuleService, {
+      guestId,
+      customerId,
+    })
   }
 
   let conversation: any = null
@@ -85,7 +102,16 @@ export const POST = async (
         return res.status(400).json({ error: "Conversation is closed" })
       }
 
-      conversation = existingConversation
+      conversation = customerId && guestId && existingConversation.guest_id === guestId
+        ? await chatModuleService.retrieveChatConversation(existingConversation.id)
+        : existingConversation
+      if (conversation.channel !== channel || (externalUserId && conversation.external_user_id !== externalUserId)) {
+        conversation = await chatModuleService.updateChatConversations({
+          id: conversation.id,
+          channel,
+          external_user_id: externalUserId || conversation.external_user_id || null,
+        })
+      }
       console.info(`${LOG_PREFIX} existing conversation accepted`, {
         conversation_id: conversation.id,
       })
@@ -98,24 +124,32 @@ export const POST = async (
     }
   }
 
-  // Determine which identifier to use for searching
-  const filters: any = {}
-  if (customerId) {
-    filters.customer_id = customerId
-  } else if (guestId) {
-    filters.guest_id = guestId
-  }
-
-  // Find existing active conversation
+  // Find the current active conversation. When both ids are present, prefer the
+  // guest conversation that was just merged so refresh/login never forks history.
   if (!conversation) {
-    const conversations = await chatModuleService.listChatConversations(filters, {
+    const primaryFilters: any = externalUserId
+      ? { channel, external_user_id: externalUserId }
+      : guestId
+        ? { guest_id: guestId }
+        : { customer_id: customerId }
+    let conversations = await chatModuleService.listChatConversations(primaryFilters, {
       order: { last_message_at: "DESC", updated_at: "DESC" },
     })
     conversation = conversations.find((c: any) => c.status !== "CLOSED")
+
+    if (!conversation && customerId && guestId) {
+      const fallbackFilters = { customer_id: customerId }
+      conversations = await chatModuleService.listChatConversations(fallbackFilters, {
+        order: { last_message_at: "DESC", updated_at: "DESC" },
+      })
+      conversation = conversations.find((c: any) => c.status !== "CLOSED")
+    }
+
     console.info(`${LOG_PREFIX} conversation lookup completed`, {
-      filters,
+      filters: primaryFilters,
       found: conversations.length,
       selected_conversation_id: conversation?.id,
+      merge_result: mergeResult,
     })
   }
 
@@ -123,6 +157,8 @@ export const POST = async (
     conversation = await chatModuleService.createChatConversations({
       customer_id: customerId,
       guest_id: guestId, // Always keep guest_id linked if available
+      channel,
+      external_user_id: externalUserId,
     })
     console.info(`${LOG_PREFIX} conversation created`, {
       conversation_id: conversation.id,
@@ -137,6 +173,10 @@ export const POST = async (
       conversation_id: conversation.id,
       sender_type: data.sender_type,
       sender_id: customerId || guestId,
+      customer_id: customerId,
+      guest_id: guestId,
+      channel,
+      external_message_id: data.external_message_id || null,
       content: data.content,
       metadata: data.metadata || null,
     })
@@ -192,6 +232,10 @@ export const POST = async (
 
   const conversationUpdate: Record<string, any> = {
     id: conversation.id,
+    customer_id: customerId || conversation.customer_id,
+    guest_id: guestId || conversation.guest_id,
+    channel,
+    external_user_id: externalUserId || conversation.external_user_id || null,
     status: nextStatus,
     last_message_at: now,
     admin_metadata: adminMetadata,
@@ -250,39 +294,25 @@ export const POST = async (
     })
   }
 
-  // Broadcast via Python WebSocket Service
-  try {
-    const broadcastRes = await fetch("http://chatbot-service:8080/api/broadcast", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation_id: conversation.id,
-        event: "chat.message.created",
-        data: { ...message, conversation_id: conversation.id },
-        notify_admin: notifyAdmin,
-      })
-    })
-    const broadcastBody = await broadcastRes.json().catch(() => null)
-    console.info(`${LOG_PREFIX} websocket broadcast completed`, {
-      conversation_id: conversation.id,
-      message_id: message.id,
-      ok: broadcastRes.ok,
-      status: broadcastRes.status,
-      notify_admin: notifyAdmin,
-      response: broadcastBody,
-    })
-  } catch (err) {
-    console.error(`${LOG_PREFIX} websocket broadcast failed`, {
-      conversation_id: conversation.id,
-      message_id: message.id,
-      error: err instanceof Error ? err.message : err,
-    })
-  }
+  const broadcastResult = await broadcastChatEvent(
+    conversation.id,
+    "chat.message.created",
+    { ...message, conversation_id: conversation.id },
+    notifyAdmin
+  )
+  console.info(`${LOG_PREFIX} websocket broadcast completed`, {
+    conversation_id: conversation.id,
+    message_id: message.id,
+    ok: broadcastResult.ok,
+    status: broadcastResult.status,
+    notify_admin: notifyAdmin,
+    response: broadcastResult.body,
+  })
 
   console.info(`${LOG_PREFIX} response sent`, {
     conversation_id: conversation.id,
     message_id: message.id,
   })
 
-  return res.json({ conversation, message })
+  return res.json({ conversation, message, merge: mergeResult })
 }

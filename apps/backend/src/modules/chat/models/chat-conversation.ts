@@ -6,6 +6,8 @@ export const ChatConversation = model.define("chat_conversation", {
   id: model.id().primaryKey(),
   customer_id: model.text().searchable().nullable(),
   guest_id: model.text().searchable().nullable(),
+  channel: model.enum(["WEB", "MESSENGER"]).default("WEB"),
+  external_user_id: model.text().searchable().nullable(),
   customer_name: model.text().searchable().nullable(),
   customer_email: model.text().searchable().nullable(),
   status: model.enum([...CHAT_STATUSES]).default("BOT_HANDLED"),

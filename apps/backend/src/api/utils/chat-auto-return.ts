@@ -1,5 +1,6 @@
-const AUTO_RETURN_AFTER_MS = 5 * 60 * 1000
+import { broadcastChatEvent } from "./chat-realtime"
 
+const AUTO_RETURN_AFTER_MS = 5 * 60 * 1000
 const WAITING_TIMEOUT_MESSAGE = "Hiện chưa có nhân viên trực tuyến. Trợ lý AI sẽ tiếp tục hỗ trợ bạn."
 const IN_PROGRESS_TIMEOUT_MESSAGE = "Nhân viên hiện không phản hồi. Trợ lý AI sẽ tiếp tục hỗ trợ bạn."
 
@@ -10,27 +11,6 @@ const toMs = (value?: string | Date | null) => {
 
   const ms = new Date(value).getTime()
   return Number.isFinite(ms) ? ms : null
-}
-
-const broadcastChatEvent = async (conversationId: string, event: string, data: any) => {
-  try {
-    await fetch("http://chatbot-service:8080/api/broadcast", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation_id: conversationId,
-        event,
-        data,
-        notify_admin: false,
-      }),
-    })
-  } catch (err) {
-    console.error("[AUTO_RETURN_TO_BOT_BROADCAST_FAILED]", {
-      conversation_id: conversationId,
-      event,
-      error: err instanceof Error ? err.message : err,
-    })
-  }
 }
 
 const shouldReturnWaitingConversation = (conversation: any, nowMs: number) => {

@@ -15,7 +15,6 @@
     "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
-    "@aws-sdk/client-lex-runtime-v2": "^3.1063.0",
     "@google-cloud/dialogflow-cx": "^5.8.1",
     "@headlessui/react": "^2.2.0",
     "@medusajs/icons": "2.15.3",

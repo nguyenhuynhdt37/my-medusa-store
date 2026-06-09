@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { CHAT_MODULE } from "../../../../../modules/chat"
+import { broadcastChatEvent } from "../../../../utils/chat-realtime"
+import { sendMessengerMessage } from "../../../../utils/messenger"
 
 const LOG_PREFIX = "[chat:admin:messages]"
 
@@ -56,6 +58,9 @@ export const POST = async (
       conversation_id: id,
       sender_type: "admin",
       sender_id: (req as any).auth_context?.actor_id,
+      customer_id: currentConversation.customer_id || null,
+      guest_id: currentConversation.guest_id || null,
+      channel: currentConversation.channel || "WEB",
       content: parsed.data.content,
     })
   } catch (err) {
@@ -109,31 +114,30 @@ export const POST = async (
     })
   }
 
-  try {
-    const broadcastRes = await fetch("http://chatbot-service:8080/api/broadcast", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+  const broadcastResult = await broadcastChatEvent(id, "chat.message.created", { ...message, conversation_id: id }, true)
+  console.info(`${LOG_PREFIX} websocket broadcast completed`, {
+    conversation_id: id,
+    message_id: message.id,
+    ok: broadcastResult.ok,
+    status: broadcastResult.status,
+    response: broadcastResult.body,
+  })
+
+  if (currentConversation.channel === "MESSENGER" && currentConversation.external_user_id) {
+    console.info("[MESSENGER_ADMIN_REPLY]", {
+      conversation_id: id,
+      psid: currentConversation.external_user_id,
+      message_id: message.id,
+    })
+    try {
+      await sendMessengerMessage(currentConversation.external_user_id, message.content)
+    } catch (err) {
+      console.error("[MESSENGER_ADMIN_REPLY_FAILED]", {
         conversation_id: id,
-        event: "chat.message.created",
-        data: { ...message, conversation_id: id },
-        notify_admin: true,
+        psid: currentConversation.external_user_id,
+        error: err instanceof Error ? err.message : err,
       })
-    })
-    const broadcastBody = await broadcastRes.json().catch(() => null)
-    console.info(`${LOG_PREFIX} websocket broadcast completed`, {
-      conversation_id: id,
-      message_id: message.id,
-      ok: broadcastRes.ok,
-      status: broadcastRes.status,
-      response: broadcastBody,
-    })
-  } catch (err) {
-    console.error(`${LOG_PREFIX} websocket broadcast failed`, {
-      conversation_id: id,
-      message_id: message.id,
-      error: err instanceof Error ? err.message : err,
-    })
+    }
   }
 
   console.info(`${LOG_PREFIX} response sent`, {

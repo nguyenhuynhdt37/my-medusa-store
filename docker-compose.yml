@@ -45,7 +45,17 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: supersecret
       COOKIE_SECRET: supersecret
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_0e7b15b6af66ec0cc488b8c17cdf2b0020ad203653949c239d686790d670f819
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env}
+      CHATBOT_SERVICE_URL: ${CHATBOT_SERVICE_URL:?Set CHATBOT_SERVICE_URL in .env}
+      CHAT_REALTIME_URL: http://localhost:9001
+      CHAT_REALTIME_PORT: 9001
+      VITE_CHAT_WS_URL: ws://localhost:9001
+      MEDUSA_INTERNAL_URL: http://localhost:9000
+      FB_APP_ID: ${FB_APP_ID:-}
+      FB_APP_SECRET: ${FB_APP_SECRET:-}
+      FB_PAGE_ACCESS_TOKEN: ${FB_PAGE_ACCESS_TOKEN:-}
+      FB_VERIFY_TOKEN: ${FB_VERIFY_TOKEN:-}
+      FB_GRAPH_VERSION: ${FB_GRAPH_VERSION:-v20.0}
       AUTH_MFA_ENCRYPTION_KEY: f5af95e14913a597916a4378be6abf47fa7cbc74237e25c8d6ad483f9e8ac8e3
       STORE_CORS: http://localhost:8000
       ADMIN_CORS: http://localhost:9000,http://localhost:5173
@@ -56,6 +66,7 @@ services:
     ports:
       - "9000:9000"
       - "7001:7001"
+      - "9001:9001"
     volumes:
       - .:/app
       - root_node_modules:/app/node_modules
@@ -68,6 +79,7 @@ services:
              pnpm install --frozen-lockfile &&
              rm -rf apps/backend/node_modules/.vite apps/backend/.medusa/client apps/backend/.medusa/server apps/backend/.medusa/admin &&
              pnpm --filter @dtc/backend exec medusa db:migrate --execute-safe-links &&
+             (pnpm --filter @dtc/backend exec ts-node src/realtime/server.ts &) &&
              pnpm --filter @dtc/backend dev"
 
   storefront:
@@ -82,9 +94,9 @@ services:
       WATCHPACK_POLLING: "true"
       MEDUSA_BACKEND_URL: http://backend:9000
       NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: pk_0e7b15b6af66ec0cc488b8c17cdf2b0020ad203653949c239d686790d670f819
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env}
       NEXT_PUBLIC_DEFAULT_REGION: vn
-      NEXT_PUBLIC_BASE_URL: http://localhost:8000
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:8000}
       NEXT_PUBLIC_DIALOGFLOW_PROJECT_ID: leanning-495806
       NEXT_PUBLIC_DIALOGFLOW_AGENT_ID: 49eca4ed-a835-4988-8a1a-45597562a831
       NEXT_PUBLIC_DIALOGFLOW_LOCATION: asia-southeast1
@@ -95,7 +107,7 @@ services:
       DIALOGFLOW_AGENT_ID: ${DIALOGFLOW_AGENT_ID:-49eca4ed-a835-4988-8a1a-45597562a831}
       DIALOGFLOW_LOCATION: ${DIALOGFLOW_LOCATION:-asia-southeast1}
       DIALOGFLOW_LANGUAGE_CODE: ${DIALOGFLOW_LANGUAGE_CODE:-vi}
-      CHATBOT_SERVICE_URL: http://chatbot-service:8080/webhook
+      NEXT_PUBLIC_CHAT_WS_URL: ws://localhost:9001
       NEXT_PUBLIC_STRIPE_KEY: ""
       PNPM_HOME: /pnpm
     ports:
@@ -119,15 +131,31 @@ services:
         condition: service_started
     environment:
       MEDUSA_BASE_URL: http://backend:9000
-      MEDUSA_PUBLISHABLE_API_KEY: pk_0e7b15b6af66ec0cc488b8c17cdf2b0020ad203653949c239d686790d670f819
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      MEDUSA_PUBLISHABLE_API_KEY: ${MEDUSA_PUBLISHABLE_API_KEY:?Set MEDUSA_PUBLISHABLE_API_KEY in .env}
       MEDUSA_REGION_COUNTRY_CODE: vn
       MEDUSA_TIMEOUT_SECONDS: 8
-      STOREFRONT_BASE_URL: http://localhost:8000
+      STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:-http://localhost:8000}
+      STOREFRONT_INTERNAL_URL: ${STOREFRONT_INTERNAL_URL:-http://storefront:8000}
       STOREFRONT_COUNTRY_CODE: vn
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       GEMINI_ENABLED: ${GEMINI_ENABLED:-true}
       GEMINI_TIMEOUT_SECONDS: 10
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      LEX_BOT_ID: ${LEX_BOT_ID:-}
+      LEX_BOT_ALIAS_ID: ${LEX_BOT_ALIAS_ID:-}
+      LEX_LOCALE_ID: ${LEX_LOCALE_ID:-vi_VN}
+      FACEBOOK_VERIFY_TOKEN: ${FACEBOOK_VERIFY_TOKEN:-}
+      FACEBOOK_PAGE_ACCESS_TOKEN: ${FACEBOOK_PAGE_ACCESS_TOKEN:-}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+      FB_GRAPH_VERSION: ${FACEBOOK_GRAPH_VERSION:-v20.0}
+      ENABLE_HUMAN_HANDOVER: ${ENABLE_HUMAN_HANDOVER:-true}
+      HUMAN_HANDOVER_CONFIDENCE_THRESHOLD: ${HUMAN_HANDOVER_CONFIDENCE_THRESHOLD:-0.65}
+      HUMAN_HANDOVER_TTL_SECONDS: ${HUMAN_HANDOVER_TTL_SECONDS:-86400}
+      WEBHOOK_DEDUPE_TTL_SECONDS: ${WEBHOOK_DEDUPE_TTL_SECONDS:-86400}
       ENVIRONMENT: development
     ports:
       - "8080:8080"

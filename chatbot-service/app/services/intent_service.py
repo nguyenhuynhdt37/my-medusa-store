@@ -314,7 +314,7 @@ class IntentService:
 
         products = await self.medusa_client.list_products(query=product_name)
         if not products:
-            products = await self.medusa_client.list_products()
+            products = await self.medusa_client.list_products(limit=250)
 
         product = self._find_best_product(product_name, products)
         if not product:
@@ -382,7 +382,7 @@ class IntentService:
 
         products = await self.medusa_client.list_products(query=product_name, limit=8)
         if not products:
-            products = await self.medusa_client.list_products(limit=50)
+            products = await self.medusa_client.list_products(limit=250)
 
         product = self._find_best_product(product_name, products)
         if not product:

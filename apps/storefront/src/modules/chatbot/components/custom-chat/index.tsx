@@ -90,11 +90,13 @@ const getGuestId = () => {
   const key = "chat_guest_id"
   const existing = window.localStorage.getItem(key)
   if (existing) {
+    document.cookie = `${key}=${encodeURIComponent(existing)}; path=/; max-age=31536000; SameSite=Lax`
     return existing
   }
 
   const next = "guest_" + crypto.randomUUID()
   window.localStorage.setItem(key, next)
+  document.cookie = `${key}=${encodeURIComponent(next)}; path=/; max-age=31536000; SameSite=Lax`
   return next
 }
 
@@ -590,25 +592,41 @@ const CustomChat = () => {
     if (!conversationId || isInitializing) return
 
     let reconnectTimer: NodeJS.Timeout
+    let reconnectAttempts = 0
 
     const connect = () => {
+      // Prevent multiple connections
+      if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+        return
+      }
+
       setWsStatus("connecting")
-      // Use Python chatbot service port (8080) for WebSockets
-      const wsUrl = `ws://localhost:8080/ws/chat/${conversationId}`
+      console.log("[WS_CONNECTING] Attempting to connect...")
+      const wsBaseUrl = process.env.NEXT_PUBLIC_CHAT_WS_URL || "ws://localhost:9001"
+      const wsUrl = `${wsBaseUrl.replace(/\/$/, "")}/ws/chat/${conversationId}`
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
+        console.log("[WS_CONNECTED] Successfully connected")
         setWsStatus("connected")
+        reconnectAttempts = 0 // Reset attempts on successful connection
+
         // subscribe presence for this guest
         try {
-          ws.send(JSON.stringify({ event: "presence.subscribe", data: { guest_id: guestId, user_type: "guest", name: "Guest" } }))
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ event: "presence.subscribe", data: { guest_id: guestId, user_type: "guest", name: "Guest" } }))
+          }
         } catch (_e) { }
+
         // start heartbeat
         try {
+          if (heartbeatRef.current) clearInterval(heartbeatRef.current)
           const id = window.setInterval(() => {
             try {
-              ws.send(JSON.stringify({ event: "presence.heartbeat", data: {} }))
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ event: "presence.heartbeat", data: {} }))
+              }
             } catch (_e) { }
           }, 15000)
           heartbeatRef.current = id
@@ -659,14 +677,32 @@ const CustomChat = () => {
               }
             }
           }
-          if (payload.event === "typing.start" && payload.data?.user_type === "admin") {
+          if (
+            payload.event === "typing.start" &&
+            (payload.data?.sender_type || payload.data?.user_type) === "admin"
+          ) {
+            console.log("typing.start", {
+              conversation_id: payload.conversation_id,
+              sender_type: payload.data?.sender_type || payload.data?.user_type,
+            })
             setAdminTyping(true)
             if (adminTypingTimeoutRef.current) {
               window.clearTimeout(adminTypingTimeoutRef.current)
             }
             adminTypingTimeoutRef.current = window.setTimeout(() => setAdminTyping(false), 5000)
           }
-          if (payload.event === "typing.stop" && payload.data?.user_type === "admin") {
+          if (
+            payload.event === "typing.stop" &&
+            (payload.data?.sender_type || payload.data?.user_type) === "admin"
+          ) {
+            console.log("typing.stop", {
+              conversation_id: payload.conversation_id,
+              sender_type: payload.data?.sender_type || payload.data?.user_type,
+            })
+            if (adminTypingTimeoutRef.current) {
+              window.clearTimeout(adminTypingTimeoutRef.current)
+              adminTypingTimeoutRef.current = null
+            }
             setAdminTyping(false)
           }
           if (payload.event === "presence.updated") {
@@ -692,14 +728,21 @@ const CustomChat = () => {
       }
 
       ws.onclose = () => {
+        console.log("[WS_CLOSED] Connection closed")
         setWsStatus("disconnected")
-        // Try to reconnect after 3s
-        reconnectTimer = setTimeout(connect, 3000)
+        
+        // Exponential backoff reconnect
+        reconnectAttempts++
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000) // 1s, 2s, 4s, 8s, 16s, 30s
+        console.log(`[WS_RECONNECT] Attempting reconnect in ${delay}ms (attempt ${reconnectAttempts})`)
+        
+        if (reconnectTimer) clearTimeout(reconnectTimer)
+        reconnectTimer = setTimeout(connect, delay)
       }
 
       ws.onerror = (err) => {
-        console.error("WebSocket error", err)
-        ws.close()
+        console.error("[WS_ERROR] WebSocket error", err)
+        // Let onclose handle reconnect
       }
     }
 
@@ -710,9 +753,12 @@ const CustomChat = () => {
       if (wsRef.current) {
         wsRef.current.onclose = null // prevent reconnect on unmount
         try {
-          wsRef.current.send(JSON.stringify({ event: "presence.unsubscribe", data: {} }))
+          if (wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ event: "presence.unsubscribe", data: {} }))
+          }
         } catch (_e) { }
         wsRef.current.close()
+        wsRef.current = null
       }
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current)
@@ -727,7 +773,7 @@ const CustomChat = () => {
         adminTypingTimeoutRef.current = null
       }
     }
-  }, [conversationId, isInitializing, notify])
+  }, [conversationId, isInitializing, notify, guestId, t])
 
   const emitTyping = (event: "typing.start" | "typing.stop") => {
     const ws = wsRef.current
@@ -735,10 +781,16 @@ const CustomChat = () => {
       return
     }
 
+    console.log(event, {
+      conversation_id: conversationId,
+      sender_type: "customer",
+    })
     ws.send(JSON.stringify({
       event,
       data: {
+        conversation_id: conversationId,
         guest_id: guestId,
+        sender_type: "customer",
         user_type: "guest",
         name: "Khách hàng",
       },
@@ -747,7 +799,11 @@ const CustomChat = () => {
 
   const handleInputChange = (value: string) => {
     setInput(value)
-    emitTyping("typing.start")
+    if (value.trim()) {
+      emitTyping("typing.start")
+    } else {
+      emitTyping("typing.stop")
+    }
 
     if (typingStopRef.current) {
       window.clearTimeout(typingStopRef.current)

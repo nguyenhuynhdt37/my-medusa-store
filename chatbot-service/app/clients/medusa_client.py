@@ -31,6 +31,7 @@ class MedusaClient:
         *,
         params: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
+        json_body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         try:
             async with httpx.AsyncClient(
@@ -42,6 +43,7 @@ class MedusaClient:
                     path,
                     params=params,
                     headers=headers,
+                    json=json_body,
                 )
                 response.raise_for_status()
                 return response.json()

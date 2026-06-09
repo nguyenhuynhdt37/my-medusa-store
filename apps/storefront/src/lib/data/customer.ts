@@ -4,6 +4,7 @@ import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { HttpTypes } from "@medusajs/types"
 import { revalidateTag } from "next/cache"
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import {
   getAuthHeaders,
@@ -14,6 +15,37 @@ import {
   removeCartId,
   setAuthToken,
 } from "./cookies"
+
+const mergeGuestChatForCustomer = async () => {
+  const headers = await getAuthHeaders()
+  if (!headers) {
+    return
+  }
+
+  const cookieStore = await cookies()
+  const guestId = cookieStore.get("chat_guest_id")?.value
+  if (!guestId) {
+    return
+  }
+
+  const backendUrl =
+    process.env.MEDUSA_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ||
+    "http://localhost:9000"
+
+  await fetch(`${backendUrl}/store/chats/merge-guest`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY || "",
+      ...headers,
+    },
+    body: JSON.stringify({ guest_id: guestId }),
+    cache: "no-store",
+  }).catch((error) => {
+    console.error("[MERGE_GUEST_AFTER_LOGIN_FAILED]", error)
+  })
+}
 
 export const retrieveCustomer =
   async (): Promise<HttpTypes.StoreCustomer | null> => {
@@ -97,6 +129,7 @@ export async function signup(_currentState: unknown, formData: FormData) {
     revalidateTag(customerCacheTag)
 
     await transferCart()
+    await mergeGuestChatForCustomer()
 
     return createdCustomer
   } catch (error) {
@@ -122,6 +155,7 @@ export async function login(_currentState: unknown, formData: FormData) {
 
   try {
     await transferCart()
+    await mergeGuestChatForCustomer()
   } catch (error) {
     return String(error)
   }
