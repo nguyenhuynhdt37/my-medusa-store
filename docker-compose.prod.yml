@@ -83,8 +83,8 @@ services:
 
   chatbot-service:
     build:
-      context: .
-      dockerfile: chatbot-service/Dockerfile
+      context: ./chatbot-service
+      dockerfile: Dockerfile
     container_name: chatbot-service
     depends_on:
       backend:
