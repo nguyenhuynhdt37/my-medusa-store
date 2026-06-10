@@ -113,6 +113,7 @@ services:
       MEDUSA_BASE_URL: http://backend:9000
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ecomoi}
       REDIS_URL: redis://redis:6379
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
     deploy:
       mode: replicated
       replicas: 2
@@ -127,6 +128,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 volumes:
   postgres_data:

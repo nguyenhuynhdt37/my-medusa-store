@@ -29,9 +29,25 @@ KEYWORD_GROUPS: list[tuple[str, list[str]]] = [
             "nhan vien dau",
             "admin dau",
             "cho gap nguoi",
+            "/h",
         ],
     ),
 ]
+
+HUMAN_HANDOFF_KEYWORDS = {
+    "gap nhan vien",
+    "gap nguoi that",
+    "gap admin",
+    "ho tro truc tiep",
+    "noi chuyen voi nhan vien",
+    "noi chuyen voi nguoi that",
+    "nhan vien dau",
+    "admin dau",
+    "cho gap nguoi",
+    "tu van vien",
+    "chuyen cho sale",
+    "/h",
+}
 
 
 def normalize(value: str | None) -> str:
@@ -39,6 +55,15 @@ def normalize(value: str | None) -> str:
     text = unicodedata.normalize("NFD", text).encode("ascii", "ignore").decode("ascii")
     text = text.lower()
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", text)).strip()
+
+
+def is_explicit_handoff_request(message: str | None) -> bool:
+    if (message or "").strip().lower() == "/h":
+        return True
+    normalized_message = normalize(message)
+    if not normalized_message:
+        return False
+    return any(keyword in normalized_message for keyword in HUMAN_HANDOFF_KEYWORDS)
 
 
 def should_escalate_to_admin(
@@ -52,7 +77,7 @@ def should_escalate_to_admin(
     normalized_intent = normalize(intent)
     is_fallback_intent = normalized_intent in {"fallbackintent", "fallback"} or "fallback" in normalized_intent
 
-    if normalized_intent == "humanhandoffintent" or "handover" in normalized_intent:
+    if (normalized_intent == "humanhandoffintent" or "handover" in normalized_intent) and is_explicit_handoff_request(message):
         return EscalationResult(True, "human_handoff", confidence)
 
     for reason, keywords in KEYWORD_GROUPS:
@@ -63,9 +88,9 @@ def should_escalate_to_admin(
         return EscalationResult(False, "fallback_prompt", confidence)
 
     if failed_response_count >= 3:
-        return EscalationResult(True, "repeated_ai_failure", confidence)
+        return EscalationResult(False, "repeated_ai_failure", confidence)
 
     if confidence is not None and confidence < 0.7:
-        return EscalationResult(True, "low_confidence", confidence)
+        return EscalationResult(False, "low_confidence", confidence)
 
     return EscalationResult(False, "ai_handled", confidence)

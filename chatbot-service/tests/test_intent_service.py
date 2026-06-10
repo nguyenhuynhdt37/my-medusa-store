@@ -118,6 +118,22 @@ class FakeGeminiClient:
         return f"Gemini: {kwargs['draft_reply']}"
 
 
+class FakeIntentResolvingGeminiClient(FakeGeminiClient):
+    async def resolve_customer_intent(self, **kwargs):
+        return {"intent": "product_recommendation", "confidence": 0.83}
+
+    async def generate_fallback_json_with_usage(self, **kwargs):
+        return {"action": "clarify", "clarifying_question": "Bạn cần mình hỗ trợ thông tin sản phẩm, giá hay đơn hàng ạ?", "confidence": 0.4}, None
+
+
+class FakeHumanResolvingGeminiClient(FakeGeminiClient):
+    async def resolve_customer_intent(self, **kwargs):
+        return {"intent": "human_handover", "confidence": 0.95}
+
+    async def generate_fallback_json_with_usage(self, **kwargs):
+        return {"action": "clarify", "clarifying_question": "Bạn muốn hỏi về sản phẩm, giá hay đơn hàng ạ?", "confidence": 0.5}, None
+
+
 def make_request(intent: str, parameters: dict, text: str | None = None):
     return LexV2Request(
         inputTranscript=text,
@@ -160,6 +176,40 @@ async def test_product_price_followup_uses_current_product_context():
     message = response.fulfillment_response.messages[0].text.text[0]
     assert "Oversized Hoodie" in message
     assert "299.000 VNĐ" in message
+
+
+@pytest.mark.asyncio
+async def test_product_context_is_not_reused_for_unrelated_product_intent():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "ProductPrice",
+            {"current_product_name": "Oversized Hoodie"},
+            text="hướng dẫn tôi sử dụng app",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Mình chưa hiểu rõ" in message
+    assert "Oversized Hoodie" not in message
+    assert response.session_info.parameters["search_status"] == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_product_context_is_not_reused_for_bot_compliment():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "ProductPrice",
+            {"current_product_name": "Oversized Hoodie"},
+            text="Bạn đẹp giai quá",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Cảm ơn" in message
+    assert "Oversized Hoodie" not in message
+    assert response.session_info.parameters["resolved_intent"] == "smalltalk_compliment"
 
 
 @pytest.mark.asyncio
@@ -214,12 +264,8 @@ async def test_order_status_misclassification_without_order_text_falls_back():
 
     message = response.fulfillment_response.messages[0].text.text[0]
     assert "Mình chưa hiểu rõ yêu cầu" in message
-    assert "gặp nhân viên" in message
-    payload = response.fulfillment_response.messages[1].payload
-    assert payload["handover_prompt"]["actions"] == [
-        {"label": "Có", "value": "gặp nhân viên"},
-        {"label": "Không", "value": "continue_bot"},
-    ]
+    assert "sản phẩm" in message
+    assert len(response.fulfillment_response.messages) == 1
 
 
 @pytest.mark.asyncio
@@ -488,3 +534,54 @@ async def test_gemini_rewrites_only_customer_text():
     assert message.startswith("Gemini:")
     assert response.session_info.parameters["current_product_name"] == "Oversized Hoodie"
     assert response.fulfillment_response.messages[1].payload["product"]["title"] == "Oversized Hoodie"
+
+
+@pytest.mark.asyncio
+async def test_off_topic_text_does_not_follow_misclassified_recommendation_intent():
+    service = IntentService(FakeMedusaClient(), gemini_client=FakeIntentResolvingGeminiClient())
+    response = await service.handle(
+        make_request(
+            "ProductRecommendationIntent",
+            {},
+            text="Messi với ronaldo thì ai đẹp trai hơn",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "sản phẩm" in message
+    assert response.session_info.parameters["search_status"] in {"gemini_clarify", "fallback_handover", "fallback"}
+    assert response.session_info.parameters["resolved_intent"] == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_bot_compliment_is_smalltalk_not_handover():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(make_request("FallbackIntent", {}, text="bạn đjp zai quá"))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Cảm ơn" in message
+    assert response.session_info.parameters["search_status"] == "smalltalk_compliment"
+    assert response.session_info.parameters["resolved_intent"] == "smalltalk_compliment"
+
+
+@pytest.mark.asyncio
+async def test_lex_handover_intent_is_ignored_without_explicit_handoff_text():
+    service = IntentService(FakeMedusaClient())
+    response = await service.handle(make_request("HumanHandoverIntent", {}, text="asdf qwer zxcv"))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Mình chưa hiểu rõ" in message
+    assert response.session_info.parameters["resolved_intent"] == "fallback"
+    assert response.session_info.parameters["search_status"] == "fallback"
+    assert response.session_info.parameters.get("handover_requested") is None
+
+
+@pytest.mark.asyncio
+async def test_gemini_handover_resolution_is_ignored_without_explicit_handoff_text():
+    service = IntentService(FakeMedusaClient(), gemini_client=FakeHumanResolvingGeminiClient())
+    response = await service.handle(make_request("FallbackIntent", {}, text="asdf qwer zxcv"))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "sản phẩm" in message
+    assert response.session_info.parameters["resolved_intent"] == "fallback"
+    assert response.session_info.parameters.get("handover_requested") is None

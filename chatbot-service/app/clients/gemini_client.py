@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from tenacity import retry, retry_if_exception, wait_exponential, stop_after_attempt
 
 from app.core.config import settings
 from app.core.exceptions import GeminiAPIError
@@ -138,6 +139,12 @@ class GeminiClient:
         )
         return result.text
 
+    @retry(
+        retry=retry_if_exception(lambda exc: isinstance(exc, GeminiAPIError) and "429" in str(exc)),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(3),
+        reraise=True,
+    )
     async def _generate_text_with_usage(
         self,
         prompt: str,
@@ -213,6 +220,27 @@ class GeminiClient:
         return GeminiTextResult(text=text, usage_metadata=data.get("usageMetadata"))
 
 
+    async def normalize_user_query_with_usage(
+        self,
+        *,
+        user_text: str,
+        session_parameters: dict[str, Any] | None = None,
+    ) -> GeminiTextResult:
+        if not self.is_enabled() or not user_text:
+            return GeminiTextResult(text=user_text)
+
+        prompt = build_query_normalization_prompt(
+            user_text=user_text,
+            session_parameters=session_parameters,
+        )
+        result = await self._generate_text_with_usage(
+            prompt,
+            response_mime_type="text/plain",
+            max_output_tokens=200,
+        )
+        return result
+
+
 def build_rewrite_prompt(
     *,
     intent: str,
@@ -236,7 +264,8 @@ def build_rewrite_prompt(
         "- Product list or recommendation: use a compact plain Markdown bullet list with title, price, and promotion only. Do not include links in the text.\n"
         "- Promotion not found: answer naturally and suggest asking for a specific product price.\n"
         "- Order answers: keep order code, status, total, and dates exactly as provided.\n"
-        "- Keep it concise; avoid long explanations.\n\n"
+        "- Keep it concise; avoid long explanations.\n"
+        "- CRITICAL ANTI-HALLUCINATION RULE: Do NOT invent facts, product specs, operating systems (e.g., iPhones run iOS, not Android/AI), prices, or promotions. Only describe information EXACTLY as provided in the facts payload. If a fact is missing, omit it.\n\n"
         f"{json.dumps(facts, ensure_ascii=False, default=str)}"
     )
 
@@ -276,6 +305,57 @@ def build_intent_resolution_prompt(
         f"{json.dumps(facts, ensure_ascii=False, default=str)}"
     )
 
+
+def build_query_normalization_prompt(
+    *,
+    user_text: str,
+    session_parameters: dict[str, Any] | None = None,
+) -> str:
+    facts = {
+        "user_text": user_text,
+        "session_parameters": session_parameters or {},
+    }
+    return (
+        "You are a Vietnamese text normalizer for an ecommerce chatbot NLU system.\n"
+        "The user typed an informal, abbreviated, or unclear Vietnamese message.\n"
+        "Your job: rewrite it into a clean, standard Vietnamese sentence that a chatbot can understand.\n\n"
+        "Rules:\n"
+        "1. Fix abbreviations: 'ip' → 'iPhone', 'ss' → 'Samsung', 'bn/bnh' → 'bao nhiêu', 'đt' → 'điện thoại', 'sp' → 'sản phẩm', 'k/ko/kg' → 'không'\n"
+        "2. Expand slang: 'giá sao' → 'giá bao nhiêu', 'thì sao' → 'giá bao nhiêu', 'bn' → 'bao nhiêu'\n"
+        "3. Keep product names and model numbers intact (e.g. 'ip 15' → 'iPhone 15', 'ip14 plus' → 'iPhone 14 Plus')\n"
+        "4. If the message is a short follow-up (e.g., '17 pro thì sao', 'có màu trắng không'), use the session_parameters context to fill in the missing entity (e.g., 'iPhone 17 Pro giá bao nhiêu', 'iPhone 15 có màu trắng không').\n"
+        "5. Make the sentence a clear question or statement\n"
+        "6. Return ONLY the rewritten sentence, nothing else\n"
+        "7. If the message is already clear, return it as-is\n"
+        "8. Do NOT add any explanation or prefix\n\n"
+        f"{json.dumps(facts, ensure_ascii=False, default=str)}\n"
+        "Rewritten:"
+    )
+
+def build_fallback_prompt(
+    *,
+    user_text: str | None,
+    session_parameters: dict[str, Any] | None,
+) -> str:
+    facts = {
+        "user_text": user_text,
+        "session_parameters": session_parameters or {},
+    }
+    return (
+        "You are an intelligent Vietnamese ecommerce assistant for a phone shop. The user's query could not be resolved to a specific intent.\n"
+        "Your task is to handle general shopping questions or ask one clarifying question.\n"
+        "Rules:\n"
+        "1. Do not invent prices, promotions, stock, order status, or shop policies. If asked about these without context, ask to clarify.\n"
+        "2. CRITICAL ANTI-HALLUCINATION RULE: Do NOT hallucinate facts or product features. iPhones run iOS, not Android. Only provide generally accepted public knowledge or strictly what is in the context.\n"
+        "3. If the user asks general shopping advice (e.g. 'what phone to buy for mom?'), answer generally, be helpful, and suggest they ask for specific product prices.\n"
+        "4. If missing a product name or order code for a specific query, ask ONE short clarifying question.\n"
+        "5. If the query is smalltalk, a compliment, or completely outside the scope of a phone shop, reply briefly and steer back to products, prices, promotions, shipping, or orders.\n"
+        "6. Set action='handover' ONLY when the user explicitly asks for a human/admin/nhân viên or uses /h. Never handover just because the message is unclear, off-topic, or low confidence.\n"
+        "7. If you answer, set action='answer' and put the response in 'answer'. If you clarify, set action='clarify' and put the response in 'clarifying_question'.\n"
+        "Return EXACTLY this JSON shape:\n"
+        '{"action":"answer|clarify|handover","answer":"...","clarifying_question":"...","confidence":0.0}\n\n'
+        f"{json.dumps(facts, ensure_ascii=False, default=str)}"
+    )
 
 def strip_json_code_fence(value: str) -> str:
     stripped = value.strip()

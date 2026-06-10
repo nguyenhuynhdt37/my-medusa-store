@@ -386,7 +386,7 @@ def install_fakes(monkeypatch, state: FakeStateStore, bot_result: dict | None = 
         async def process_customer_message(self, **kwargs):
             calls["bot"].append(kwargs)
             result = bot_result or {"reply": "bot reply", "intent": "product_price", "confidence": 1.0}
-            handover = "fallback" in str(result.get("intent", "")).lower() or (result.get("escalation") or {}).get("escalate")
+            handover = (result.get("escalation") or {}).get("escalate")
             handover = bool(handover)
             return BotReplyResult(
                 reply=result.get("reply"),
@@ -449,6 +449,32 @@ def test_handover_trigger_sets_human_mode_and_does_not_send_bot_reply(monkeypatc
     assert conversation.status == ConversationStatus.WAITING_AGENT
     assert conversation.current_owner == ConversationOwner.AGENT
     assert any(event.event_type == "HANDOVER_STARTED" for event in calls["repo"].events)
+
+
+def test_fallback_bot_result_does_not_enter_human_mode(monkeypatch):
+    state = FakeStateStore()
+    calls = install_fakes(
+        monkeypatch,
+        state,
+        {
+            "reply": "Mình chưa hiểu rõ yêu cầu của bạn.",
+            "messages": [{"text": "Mình chưa hiểu rõ yêu cầu của bạn."}],
+            "intent": "fallback",
+            "confidence": 0.2,
+            "escalation": {"escalate": False, "reason": "fallback_prompt"},
+        },
+    )
+    raw_body, headers = signed_headers(messenger_body(customer_message(text="asdf qwer zxcv")))
+
+    response = TestClient(app).post("/facebook/webhook", content=raw_body, headers=headers)
+
+    assert response.status_code == 200
+    assert calls["bot"]
+    assert calls["send"][0]["text"] == "Mình chưa hiểu rõ yêu cầu của bạn."
+    assert calls["logs"][-1]["event"] == "bot_replied"
+    conversation = next(iter(calls["repo"].conversations.values()))
+    assert conversation.status == ConversationStatus.BOT_ACTIVE
+    assert conversation.current_owner == ConversationOwner.BOT
 
 
 def test_admin_hash_bot_resumes_without_calling_lex(monkeypatch):

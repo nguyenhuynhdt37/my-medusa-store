@@ -42,7 +42,7 @@ class FakeAsyncClient:
 @pytest.mark.asyncio
 async def test_gemini_generation_exposes_usage_metadata(monkeypatch):
     monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
-    client = GeminiClient(api_key="key", model="gemini-2.5-flash")
+    client = GeminiClient(api_key="key", model="gemini-2.0-flash")
 
     result = await client.rewrite_customer_reply_with_usage(
         intent="product_price",

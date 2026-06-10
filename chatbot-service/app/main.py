@@ -33,6 +33,11 @@ def create_app() -> FastAPI:
     app.include_router(admin_ai_usage_router)
     app.include_router(admin_conversations_router)
     app.include_router(websocket_router)
+    
+    @app.get("/health", tags=["Health"])
+    async def health_check():
+        return {"status": "ok"}
+        
     app.include_router(storefront_proxy_router)
     return app
 

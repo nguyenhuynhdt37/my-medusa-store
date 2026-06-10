@@ -1,7 +1,5 @@
 "use client"
 
-import { useTranslation } from "react-i18next"
-
 import { Table, Text, clx } from "@modules/common/components/ui"
 import { updateLineItem } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
@@ -23,7 +21,6 @@ type ItemProps = {
 }
 
 const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
-  const { t } = useTranslation()
   const [updating, setUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

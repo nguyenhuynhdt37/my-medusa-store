@@ -2,7 +2,9 @@ import { getLocale } from "@lib/data/locale-actions"
 import vi from "./locales/vi.json"
 import en from "./locales/en.json"
 
-const translations: Record<string, any> = {
+type TranslationValue = string | { [key: string]: TranslationValue }
+
+const translations: Record<string, TranslationValue> = {
   vi,
   en,
 }
@@ -12,7 +14,7 @@ export async function tServer(key: string, params?: Record<string, string | numb
   const localeData = translations[locale] || translations["en"]
 
   const keys = key.split(".")
-  let value: any = localeData
+  let value: TranslationValue | undefined = localeData
 
   for (const k of keys) {
     if (value && typeof value === "object" && k in value) {

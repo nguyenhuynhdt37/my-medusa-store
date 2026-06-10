@@ -41,7 +41,9 @@ const playNotificationSound = async () => {
   }
 
   try {
-    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
     if (!AudioContextClass) {
       return
     }
@@ -57,7 +59,7 @@ const playNotificationSound = async () => {
     gain.connect(context.destination)
     oscillator.start()
     oscillator.stop(context.currentTime + 0.12)
-  } catch (error) {
+  } catch (_error) {
     // Browsers may block sound before user interaction; notification UI still works.
   }
 }
@@ -122,4 +124,3 @@ export const useChatNotifications = ({
     markRead,
   }
 }
-

@@ -2,7 +2,8 @@
 
 import { ChatBubbleLeftRight, PaperPlane, Trash, XMark } from "@medusajs/icons"
 import clsx from "clsx"
-import React, { FormEvent, useEffect, useRef, useState } from "react"
+import Image from "next/image"
+import React, { FormEvent, useCallback, useEffect, useRef, useState } from "react"
 import { useChatNotifications } from "../../lib/chat-notifications"
 import { storefrontTranslations as i18n, t, formatPresence } from "../../i18n"
 
@@ -59,6 +60,19 @@ type PresenceEntry = {
 }
 
 const suggestedQuestions = i18n.chat.suggestedQuestions
+const chatDebugEnabled = process.env.NEXT_PUBLIC_CHAT_DEBUG === "true"
+
+const chatDebug = (...args: unknown[]) => {
+  if (chatDebugEnabled) {
+    console.log(...args)
+  }
+}
+
+const chatDebugTable = (rows: unknown[]) => {
+  if (chatDebugEnabled) {
+    console.table(rows)
+  }
+}
 
 const roleFromSenderType = (senderType?: string): BotMessage["role"] => {
   if (senderType === "customer" || senderType === "guest") {
@@ -186,9 +200,12 @@ const FormattedText = ({ text }: { text: string }) => {
     if ((imgMatch = imgRegex.exec(line)) !== null) {
       return (
         <div key={key} className="my-2.5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition duration-300 hover:shadow-md">
-          <img
+          <Image
             src={imgMatch[2]}
             alt={imgMatch[1]}
+            width={640}
+            height={320}
+            sizes="(max-width: 640px) 100vw, 640px"
             className="w-full max-h-48 object-cover transition duration-500 hover:scale-105"
           />
           {imgMatch[1] && (
@@ -322,9 +339,12 @@ const ProductCards = ({ payload }: { payload?: BotMessage["payload"] }) => {
         >
           {product.image ? (
             <div className="h-16 w-16 flex-none overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <img
+              <Image
                 src={product.image}
                 alt={product.title || t("chat.product.imageAlt")}
+                width={64}
+                height={64}
+                sizes="64px"
                 className="h-full w-full object-cover transition duration-300 group-hover:scale-110"
               />
             </div>
@@ -507,12 +527,12 @@ const CustomChat = () => {
     if (convId) setConversationId(convId)
   }, [])
 
-  const handleSetConversationId = (id: string) => {
+  const handleSetConversationId = useCallback((id: string) => {
     setConversationId(id)
     if (typeof window !== "undefined") {
       window.localStorage.setItem("chat_conversation_id", id)
     }
-  }
+  }, [])
 
   const handleClearHistory = async () => {
     if (confirm(t("chat.confirm.clearHistory"))) {
@@ -547,7 +567,7 @@ const CustomChat = () => {
   }, [messages, isOpen])
 
   useEffect(() => {
-    console.table(
+    chatDebugTable(
       sortMessagesByCreatedAt(messages).map((m) => ({
         id: m.id,
         sender: m.role,
@@ -557,11 +577,11 @@ const CustomChat = () => {
     )
   }, [messages])
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     if (!guestId) return
     try {
       const storedConversationId = getConversationId()
-      console.log("[CHAT_LOCAL_STORAGE]", {
+      chatDebug("[CHAT_LOCAL_STORAGE]", {
         chat_guest_id: guestId,
         chat_conversation_id: storedConversationId,
       })
@@ -603,12 +623,12 @@ const CustomChat = () => {
     } finally {
       setIsInitializing(false)
     }
-  }
+  }, [guestId, handleSetConversationId])
 
   // Load history on mount or history trigger changes
   useEffect(() => {
     loadHistory()
-  }, [guestId, historyTrigger])
+  }, [loadHistory, historyTrigger])
 
   // Check and merge guest conversation into customer account if logged in
   useEffect(() => {
@@ -625,7 +645,7 @@ const CustomChat = () => {
           const isAlreadyMerged = window.localStorage.getItem(mergedKey)
 
           if (!isAlreadyMerged) {
-            console.log("[CHAT_FRONTEND_MERGE]", {
+            chatDebug("[CHAT_FRONTEND_MERGE]", {
               guest_id: guestId,
               customer_id: customer.id,
             })
@@ -641,7 +661,7 @@ const CustomChat = () => {
 
             if (mergeRes.ok) {
               window.localStorage.setItem(mergedKey, "true")
-              console.log("[CHAT_FRONTEND_MERGE_SUCCESS]")
+              chatDebug("[CHAT_FRONTEND_MERGE_SUCCESS]")
               // Reload history to see the merged messages/conversations
               setHistoryTrigger(prev => prev + 1)
             }
@@ -668,14 +688,14 @@ const CustomChat = () => {
       }
 
       setWsStatus("connecting")
-      console.log("[WS_CONNECTING] Attempting to connect...")
+      chatDebug("[WS_CONNECTING] Attempting to connect...")
       const wsBaseUrl = process.env.NEXT_PUBLIC_CHAT_WS_URL || "ws://localhost:9001"
       const wsUrl = `${wsBaseUrl.replace(/\/$/, "")}/ws/chat/${conversationId}`
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log("[WS_CONNECTED] Successfully connected")
+        chatDebug("[WS_CONNECTED] Successfully connected")
         setWsStatus("connected")
         reconnectAttempts = 0 // Reset attempts on successful connection
 
@@ -748,7 +768,7 @@ const CustomChat = () => {
             payload.event === "typing.start" &&
             (payload.data?.sender_type || payload.data?.user_type) === "admin"
           ) {
-            console.log("typing.start", {
+            chatDebug("typing.start", {
               conversation_id: payload.conversation_id,
               sender_type: payload.data?.sender_type || payload.data?.user_type,
             })
@@ -762,7 +782,7 @@ const CustomChat = () => {
             payload.event === "typing.stop" &&
             (payload.data?.sender_type || payload.data?.user_type) === "admin"
           ) {
-            console.log("typing.stop", {
+            chatDebug("typing.stop", {
               conversation_id: payload.conversation_id,
               sender_type: payload.data?.sender_type || payload.data?.user_type,
             })
@@ -795,13 +815,13 @@ const CustomChat = () => {
       }
 
       ws.onclose = () => {
-        console.log("[WS_CLOSED] Connection closed")
+        chatDebug("[WS_CLOSED] Connection closed")
         setWsStatus("disconnected")
         
         // Exponential backoff reconnect
         reconnectAttempts++
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000) // 1s, 2s, 4s, 8s, 16s, 30s
-        console.log(`[WS_RECONNECT] Attempting reconnect in ${delay}ms (attempt ${reconnectAttempts})`)
+        chatDebug(`[WS_RECONNECT] Attempting reconnect in ${delay}ms (attempt ${reconnectAttempts})`)
         
         if (reconnectTimer) clearTimeout(reconnectTimer)
         reconnectTimer = setTimeout(connect, delay)
@@ -840,7 +860,7 @@ const CustomChat = () => {
         adminTypingTimeoutRef.current = null
       }
     }
-  }, [conversationId, isInitializing, notify, guestId, t])
+  }, [conversationId, isInitializing, notify, guestId])
 
   const emitTyping = (event: "typing.start" | "typing.stop") => {
     const ws = wsRef.current
@@ -848,7 +868,7 @@ const CustomChat = () => {
       return
     }
 
-    console.log(event, {
+    chatDebug(event, {
       conversation_id: conversationId,
       sender_type: "customer",
     })

@@ -1,6 +1,5 @@
 import { Metadata } from "next"
 
-import OrderOverview from "@modules/account/components/order-overview"
 import { notFound } from "next/navigation"
 import { listOrders } from "@lib/data/orders"
 import OrdersPageContent from "./OrdersPageContent"

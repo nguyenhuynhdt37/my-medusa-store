@@ -21,11 +21,11 @@ type ChatPanelProps = {
   handleTextareaInput: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   input: string;
   messages: ChatMessage[];
-  messagesEndRef: RefObject<HTMLDivElement>;
-  messagesScrollRef: RefObject<HTMLDivElement>;
+  messagesEndRef: RefObject<HTMLDivElement | null>;
+  messagesScrollRef: RefObject<HTMLDivElement | null>;
   presenceMap: ChatPresenceMap;
   sendMessage: (event?: React.FormEvent) => void;
-  textareaRef: RefObject<HTMLTextAreaElement>;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
   tt: Translate;
   updateStatus: (
     status: "WAITING_ADMIN" | "IN_PROGRESS" | "CLOSED" | "BOT_HANDLED",
@@ -199,8 +199,8 @@ const MessageList = ({
   customerTypingMap: Record<string, boolean>;
   handleMessagesScroll: () => void;
   messages: ChatMessage[];
-  messagesEndRef: RefObject<HTMLDivElement>;
-  messagesScrollRef: RefObject<HTMLDivElement>;
+  messagesEndRef: RefObject<HTMLDivElement | null>;
+  messagesScrollRef: RefObject<HTMLDivElement | null>;
   tt: Translate;
 }) => (
   <div
@@ -415,7 +415,7 @@ const Composer = ({
   handleTextareaInput: ChatPanelProps["handleTextareaInput"];
   input: string;
   sendMessage: ChatPanelProps["sendMessage"];
-  textareaRef: RefObject<HTMLTextAreaElement>;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
   tt: Translate;
 }) => (
   <div className="shrink-0 border-t border-ui-border-base bg-ui-bg-base p-4">

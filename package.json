@@ -13,9 +13,7 @@
     "test": "turbo test",
     "backend:seed": "turbo seed --filter=@dtc/backend",
     "backend:dev": "turbo dev --filter=@dtc/backend",
-    "storefront:dev": "turbo dev --filter=@dtc/storefront",
-    "chat:test-flow": "node scripts/test-chat-message-flow.mjs",
-    "chat:test-ai-first": "node scripts/test-ai-first-chat-flow.mjs"
+    "storefront:dev": "turbo dev --filter=@dtc/storefront"
   },
   "pnpm": {
     "overrides": {

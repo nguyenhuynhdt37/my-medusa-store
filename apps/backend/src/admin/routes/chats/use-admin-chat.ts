@@ -15,6 +15,14 @@ import {
   sortMessagesByCreatedAt,
 } from "./utils";
 
+const chatDebugEnabled = import.meta.env.VITE_CHAT_DEBUG === "true";
+
+const chatDebug = (...args: unknown[]) => {
+  if (chatDebugEnabled) {
+    console.log(...args);
+  }
+};
+
 export const useAdminChat = (tt: Translate) => {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [filteredConversations, setFilteredConversations] = useState<
@@ -76,7 +84,7 @@ export const useAdminChat = (tt: Translate) => {
         return currentId;
       }
 
-      console.log("[SELECTED_CONVERSATION]", {
+      chatDebug("[SELECTED_CONVERSATION]", {
         old_id: currentId,
         new_id: nextId,
         reason,
@@ -195,7 +203,7 @@ export const useAdminChat = (tt: Translate) => {
       return;
     }
 
-    console.log(event, {
+    chatDebug(event, {
       conversation_id: selected.id,
       sender_type: "admin",
     });
@@ -506,7 +514,7 @@ export const useAdminChat = (tt: Translate) => {
             (payload.data?.sender_type || payload.data?.user_type) !== "admin"
           ) {
             const conversationId = payload.conversation_id;
-            console.log("typing.start", {
+            chatDebug("typing.start", {
               conversation_id: conversationId,
               sender_type: payload.data?.sender_type || payload.data?.user_type,
             });
@@ -535,7 +543,7 @@ export const useAdminChat = (tt: Translate) => {
             (payload.data?.sender_type || payload.data?.user_type) !== "admin"
           ) {
             const conversationId = payload.conversation_id;
-            console.log("typing.stop", {
+            chatDebug("typing.stop", {
               conversation_id: conversationId,
               sender_type: payload.data?.sender_type || payload.data?.user_type,
             });

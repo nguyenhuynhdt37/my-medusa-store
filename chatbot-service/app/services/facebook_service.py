@@ -13,7 +13,7 @@ from app.services.chat_constants import HANDOVER_MESSAGE, RESUME_BOT_MESSAGE
 
 
 ADMIN_RESUME_COMMANDS = {"#bot", "/bot"}
-CUSTOMER_RESUME_COMMANDS = {"#bot", "/bot", "bot ơi", "bot oi", "gọi bot", "goi bot"}
+CUSTOMER_RESUME_COMMANDS = {"#bot", "/bot", "/b", "bot ơi", "bot oi", "gọi bot", "goi bot"}
 
 
 @dataclass(frozen=True)
@@ -226,15 +226,7 @@ def should_handover(bot_result: dict[str, Any]) -> bool:
     if escalation.get("escalate"):
         return True
 
-    intent = str(bot_result.get("intent") or "").lower()
-    if "fallback" in intent or "unknown" in intent or "handover" in intent or "human" in intent:
-        return True
-
-    confidence = bot_result.get("confidence")
-    try:
-        return confidence is not None and float(confidence) < settings.human_handover_confidence_threshold
-    except (TypeError, ValueError):
-        return False
+    return False
 
 
 def log_facebook_event(

@@ -4,6 +4,7 @@ from typing import Any
 
 from app.core.config import settings
 from app.domain import BotReplyResult, Conversation
+from app.services.escalation import is_explicit_handoff_request
 from app.services.lambda_service import call_bot
 
 
@@ -19,7 +20,7 @@ class BotOrchestrator:
             message=message,
             page_id=conversation.channel_account_id,
         )
-        fallback = self.should_handover(result)
+        fallback = self.should_handover(result, message=message)
         return BotReplyResult(
             reply=result.get("reply"),
             messages=result.get("messages") or [],
@@ -31,7 +32,7 @@ class BotOrchestrator:
             metadata=result.get("metadata"),
         )
 
-    def should_handover(self, bot_result: dict[str, Any]) -> bool:
+    def should_handover(self, bot_result: dict[str, Any], message: str | None = None) -> bool:
         if not settings.enable_human_handover:
             return False
 
@@ -40,11 +41,7 @@ class BotOrchestrator:
             return True
 
         intent = str(bot_result.get("intent") or "").lower()
-        if "fallback" in intent or "unknown" in intent or "handover" in intent or "human" in intent:
+        if ("human" in intent or "handover" in intent) and is_explicit_handoff_request(message):
             return True
 
-        confidence = bot_result.get("confidence")
-        try:
-            return confidence is not None and float(confidence) < settings.human_handover_confidence_threshold
-        except (TypeError, ValueError):
-            return False
+        return False
