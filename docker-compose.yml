@@ -30,36 +30,26 @@ services:
       retries: 20
 
   backend:
-    image: node:22-bookworm-slim
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: base
     working_dir: /app
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       NODE_ENV: development
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/ecomoi
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: supersecret
-      COOKIE_SECRET: supersecret
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env}
-      CHATBOT_SERVICE_URL: ${CHATBOT_SERVICE_URL:?Set CHATBOT_SERVICE_URL in .env}
       CHAT_REALTIME_URL: http://localhost:9001
       CHAT_REALTIME_PORT: 9001
       VITE_CHAT_WS_URL: ws://localhost:9001
       MEDUSA_INTERNAL_URL: http://localhost:9000
-      FB_APP_ID: ${FB_APP_ID:-}
-      FB_APP_SECRET: ${FB_APP_SECRET:-}
-      FB_PAGE_ACCESS_TOKEN: ${FB_PAGE_ACCESS_TOKEN:-}
-      FB_VERIFY_TOKEN: ${FB_VERIFY_TOKEN:-}
-      FB_GRAPH_VERSION: ${FB_GRAPH_VERSION:-v20.0}
-      AUTH_MFA_ENCRYPTION_KEY: f5af95e14913a597916a4378be6abf47fa7cbc74237e25c8d6ad483f9e8ac8e3
-      STORE_CORS: http://localhost:8000
-      ADMIN_CORS: http://localhost:9000,http://localhost:5173
-      AUTH_CORS: http://localhost:9000,http://localhost:5173,http://localhost:8000
       MEDUSA_ADMIN_ONBOARDING_TYPE: nextjs
       MEDUSA_ADMIN_ONBOARDING_NEXTJS_DIRECTORY: apps/storefront
       PNPM_HOME: /pnpm
@@ -67,11 +57,23 @@ services:
       - "9000:9000"
       - "7001:7001"
       - "9001:9001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:9000/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
     volumes:
       - .:/app
-      - root_node_modules:/app/node_modules
+      - backend_root_node_modules:/app/node_modules
       - backend_node_modules:/app/apps/backend/node_modules
-      - pnpm_store:/pnpm/store
+      - backend_pnpm_store:/pnpm/store
     command: >
       sh -c "corepack enable &&
              ln -sfn /app/apps /apps &&
@@ -83,20 +85,21 @@ services:
              pnpm --filter @dtc/backend dev"
 
   storefront:
-    image: node:22-bookworm-slim
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: base
     working_dir: /app
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
+    env_file:
+      - .env
     environment:
       NODE_ENV: development
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
       MEDUSA_BACKEND_URL: http://backend:9000
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
-      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env}
-      NEXT_PUBLIC_DEFAULT_REGION: vn
-      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:-http://localhost:8000}
       NEXT_PUBLIC_CHAT_WS_URL: ws://localhost:9001
       NEXT_PUBLIC_STRIPE_KEY: ""
       PNPM_HOME: /pnpm
@@ -104,9 +107,9 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
-      - root_node_modules:/app/node_modules
+      - storefront_root_node_modules:/app/node_modules
       - storefront_node_modules:/app/apps/storefront/node_modules
-      - pnpm_store:/pnpm/store
+      - storefront_pnpm_store:/pnpm/store
     command: >
       sh -c "corepack enable &&
              pnpm config set store-dir /pnpm/store &&
@@ -118,46 +121,28 @@ services:
       context: ./chatbot-service
     depends_on:
       backend:
+        condition: service_healthy
+      storefront:
         condition: service_started
+    env_file:
+      - .env
     environment:
+      ENVIRONMENT: development
       MEDUSA_BASE_URL: http://backend:9000
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@postgres:5432/ecomoi}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      MEDUSA_PUBLISHABLE_API_KEY: ${MEDUSA_PUBLISHABLE_API_KEY:?Set MEDUSA_PUBLISHABLE_API_KEY in .env}
+      STOREFRONT_INTERNAL_URL: http://storefront:8000
       MEDUSA_REGION_COUNTRY_CODE: vn
       MEDUSA_TIMEOUT_SECONDS: 8
-      STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:-http://localhost:8000}
-      STOREFRONT_INTERNAL_URL: ${STOREFRONT_INTERNAL_URL:-http://storefront:8000}
       STOREFRONT_COUNTRY_CODE: vn
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
-      GEMINI_ENABLED: ${GEMINI_ENABLED:-true}
       GEMINI_TIMEOUT_SECONDS: 10
-      AI_COST_TRACKING_ENABLED: ${AI_COST_TRACKING_ENABLED:-true}
-      LEX_TEXT_REQUEST_PRICE_USD: ${LEX_TEXT_REQUEST_PRICE_USD:-0.00075}
-      GEMINI_INPUT_PRICE_PER_1M_TOKENS_USD: ${GEMINI_INPUT_PRICE_PER_1M_TOKENS_USD:-0.30}
-      GEMINI_OUTPUT_PRICE_PER_1M_TOKENS_USD: ${GEMINI_OUTPUT_PRICE_PER_1M_TOKENS_USD:-2.50}
-      LAMBDA_MEMORY_SIZE_MB: ${LAMBDA_MEMORY_SIZE_MB:-128}
-      LAMBDA_REQUEST_PRICE_PER_1M_USD: ${LAMBDA_REQUEST_PRICE_PER_1M_USD:-0.20}
-      LAMBDA_DURATION_PRICE_PER_GB_SECOND_USD: ${LAMBDA_DURATION_PRICE_PER_GB_SECOND_USD:-0.0000166667}
-      AI_USAGE_SNAPSHOT_JOB_ENABLED: ${AI_USAGE_SNAPSHOT_JOB_ENABLED:-true}
-      AI_USAGE_SNAPSHOT_INTERVAL_SECONDS: ${AI_USAGE_SNAPSHOT_INTERVAL_SECONDS:-3600}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      LEX_BOT_ID: ${LEX_BOT_ID:-}
-      LEX_BOT_ALIAS_ID: ${LEX_BOT_ALIAS_ID:-}
-      LEX_LOCALE_ID: ${LEX_LOCALE_ID:-vi_VN}
-      FACEBOOK_VERIFY_TOKEN: ${FACEBOOK_VERIFY_TOKEN:-}
-      FACEBOOK_PAGE_ACCESS_TOKEN: ${FACEBOOK_PAGE_ACCESS_TOKEN:-}
-      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
-      FB_GRAPH_VERSION: ${FACEBOOK_GRAPH_VERSION:-v20.0}
-      ENABLE_HUMAN_HANDOVER: ${ENABLE_HUMAN_HANDOVER:-true}
-      ENABLE_CUSTOMER_RESUME_BOT: ${ENABLE_CUSTOMER_RESUME_BOT:-true}
-      HUMAN_HANDOVER_CONFIDENCE_THRESHOLD: ${HUMAN_HANDOVER_CONFIDENCE_THRESHOLD:-0.65}
-      HUMAN_HANDOVER_TTL_SECONDS: ${HUMAN_HANDOVER_TTL_SECONDS:-86400}
-      WEBHOOK_DEDUPE_TTL_SECONDS: ${WEBHOOK_DEDUPE_TTL_SECONDS:-86400}
-      ENVIRONMENT: development
+      AI_COST_TRACKING_ENABLED: "true"
+      LEX_TEXT_REQUEST_PRICE_USD: 0.00075
+      GEMINI_INPUT_PRICE_PER_1M_TOKENS_USD: 0.30
+      GEMINI_OUTPUT_PRICE_PER_1M_TOKENS_USD: 2.50
+      LAMBDA_MEMORY_SIZE_MB: 128
+      LAMBDA_REQUEST_PRICE_PER_1M_USD: 0.20
+      LAMBDA_DURATION_PRICE_PER_GB_SECOND_USD: 0.0000166667
+      AI_USAGE_SNAPSHOT_JOB_ENABLED: "true"
+      AI_USAGE_SNAPSHOT_INTERVAL_SECONDS: 3600
     ports:
       - "8080:8080"
     volumes:
@@ -168,8 +153,8 @@ services:
     depends_on:
       chatbot-service:
         condition: service_started
-    environment:
-      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Set NGROK_AUTHTOKEN in .env}
+    env_file:
+      - .env
     volumes:
       - ./.ngrok.docker.yml:/etc/ngrok.yml:ro
     command: ["start", "app", "--config", "/etc/ngrok.yml"]
@@ -179,7 +164,9 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  root_node_modules:
+  backend_root_node_modules:
   backend_node_modules:
+  backend_pnpm_store:
+  storefront_root_node_modules:
   storefront_node_modules:
-  pnpm_store:
+  storefront_pnpm_store:

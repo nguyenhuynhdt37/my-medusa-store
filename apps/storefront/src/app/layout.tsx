@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout(props: { children: React.ReactNode }) {
   return (
     <html lang="vi" data-mode="light">
-      <body>
+      <body suppressHydrationWarning>
         <I18nProvider locale="vi">
           <main className="relative">{props.children}</main>
           <CustomChat />

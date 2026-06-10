@@ -12,6 +12,14 @@ from app.services.intent_service import IntentService
 router = APIRouter()
 
 
+@router.get("/lexv2/webhook", include_in_schema=False)
+async def lexv2_webhook_status() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "message": "Lex V2 fulfillment requests must use POST",
+    }
+
+
 @router.post("/lexv2/webhook", response_model=LexV2Response)
 async def lexv2_webhook(
     request: LexV2Request,

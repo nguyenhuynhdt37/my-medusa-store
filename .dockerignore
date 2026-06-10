@@ -1,0 +1,15 @@
+node_modules
+.next
+dist
+coverage
+.git
+.env
+.env.*
+!.env.example
+.turbo
+*.log
+.DS_Store
+apps/backend/.medusa
+apps/storefront/.next
+chatbot-service/.venv
+chatbot-service/__pycache__

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 import httpx
 
 from app.core.config import settings
@@ -32,12 +32,18 @@ async def proxy_storefront(path: str, request: Request) -> Response:
         if key.lower() not in HOP_BY_HOP_HEADERS and key.lower() != "host"
     }
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(20.0), follow_redirects=False) as client:
-        upstream = await client.request(
-            request.method,
-            target,
-            headers=headers,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0), follow_redirects=False) as client:
+            upstream = await client.request(
+                request.method,
+                target,
+                headers=headers,
+            )
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Storefront service is unavailable",
+        ) from exc
 
     response_headers = {
         key: value

@@ -54,6 +54,15 @@ importers:
       '@medusajs/ui':
         specifier: 4.1.13
         version: 4.1.13(@types/react-dom@19.0.5(@types/react@19.0.5))(@types/react@19.0.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
+      '@mikro-orm/core':
+        specifier: 6.6.12
+        version: 6.6.12
+      '@mikro-orm/knex':
+        specifier: 6.6.12
+        version: 6.6.12(@mikro-orm/core@6.6.12)(pg@8.20.0)
+      '@mikro-orm/migrations':
+        specifier: 6.6.12
+        version: 6.6.12(@mikro-orm/core@6.6.12)(@types/node@20.19.41)(pg@8.20.0)
       '@tailwindcss/typography':
         specifier: ^0.5.19
         version: 0.5.19
@@ -10434,6 +10443,26 @@ snapshots:
       knex: 3.2.8(pg@8.21.0)
       sqlstring: 2.3.3
     transitivePeerDependencies:
+      - mysql
+      - mysql2
+      - pg
+      - pg-native
+      - pg-query-stream
+      - sqlite3
+      - supports-color
+      - tedious
+
+  '@mikro-orm/migrations@6.6.12(@mikro-orm/core@6.6.12)(@types/node@20.19.41)(pg@8.20.0)':
+    dependencies:
+      '@mikro-orm/core': 6.6.12
+      '@mikro-orm/knex': 6.6.12(@mikro-orm/core@6.6.12)(pg@8.20.0)
+      fs-extra: 11.3.3
+      umzug: 3.8.2(@types/node@20.19.41)
+    transitivePeerDependencies:
+      - '@types/node'
+      - better-sqlite3
+      - libsql
+      - mariadb
       - mysql
       - mysql2
       - pg
