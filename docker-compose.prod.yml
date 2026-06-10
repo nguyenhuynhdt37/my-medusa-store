@@ -36,7 +36,18 @@ services:
       redis:
         condition: service_healthy
     env_file:
-      - .env
+      - .env.prod
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: production
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}
+      DOMAIN: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}
+      STOREFRONT_URL: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8000}
+      CHATBOT_URL: ${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8080
+      MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:9000}
+      STORE_CORS: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8000}
+      ADMIN_CORS: ${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:9000}
+      AUTH_CORS: ${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:9000},${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8000}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -59,10 +70,10 @@ services:
       context: .
       dockerfile: apps/storefront/Dockerfile
       args:
-        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:-http://host.docker.internal:9000}
-        NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env}
-        NEXT_PUBLIC_BASE_URL: ${STOREFRONT_URL:?Set STOREFRONT_URL in .env}
-        NEXT_PUBLIC_CHAT_WS_URL: ${NEXT_PUBLIC_CHAT_WS_URL:-ws://host.docker.internal:9001}
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:9000}
+        NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env.prod}
+        NEXT_PUBLIC_BASE_URL: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8000}
+        NEXT_PUBLIC_CHAT_WS_URL: ${PUBLIC_CHAT_WS_ORIGIN:-${PUBLIC_CHAT_WS_PROTOCOL:-ws}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:9001}
         NEXT_PUBLIC_DEFAULT_REGION: ${NEXT_PUBLIC_DEFAULT_REGION:-vn}
         NEXT_PUBLIC_DIALOGFLOW_PROJECT_ID: ${NEXT_PUBLIC_DIALOGFLOW_PROJECT_ID:-}
         NEXT_PUBLIC_DIALOGFLOW_AGENT_ID: ${NEXT_PUBLIC_DIALOGFLOW_AGENT_ID:-}
@@ -74,9 +85,17 @@ services:
       backend:
         condition: service_healthy
     env_file:
-      - .env
+      - .env.prod
     environment:
+      NODE_ENV: production
+      ENVIRONMENT: production
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}
+      DOMAIN: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}
+      STOREFRONT_URL: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8000}
       MEDUSA_BACKEND_URL: http://backend:9000
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:9000}
+      NEXT_PUBLIC_BASE_URL: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8000}
+      NEXT_PUBLIC_CHAT_WS_URL: ${PUBLIC_CHAT_WS_ORIGIN:-${PUBLIC_CHAT_WS_PROTOCOL:-ws}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:9001}
     ports:
       - "8000:8000"
     restart: always
@@ -92,8 +111,13 @@ services:
       storefront:
         condition: service_started
     env_file:
-      - .env
+      - .env.prod
     environment:
+      ENVIRONMENT: production
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}
+      DOMAIN: ${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}
+      STOREFRONT_URL: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8000}
+      CHATBOT_URL: ${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8080
       MEDUSA_BASE_URL: http://backend:9000
       STOREFRONT_INTERNAL_URL: http://storefront:8000
     ports:
