@@ -24,13 +24,8 @@ module.exports = defineConfig({
   //   vite: (config) => {
   //     config.server = {
   //       ...config.server,
-  //       host: "0.0.0.0",
-  //       port: 7001,
-  //       strictPort: true,
   //       hmr: {
-  //         protocol: "ws",
-  //         host: "localhost",
-  //         port: 7001,
+  //         clientPort: 9000,
   //       }
   //     }
   //     return config

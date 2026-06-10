@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ecomoi}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ${REGISTRY:-}medusa-backend:latest
+    build:
+      context: ./apps/backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ecomoi}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET:?Set COOKIE_SECRET}
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set PUBLISHABLE_KEY}
+      CHATBOT_SERVICE_URL: http://chatbot-service:8080/webhook
+      CHAT_REALTIME_URL: http://localhost:9001
+      CHAT_REALTIME_PORT: 9001
+      VITE_CHAT_WS_URL: wss://${DOMAIN:-localhost}/ws
+      MEDUSA_INTERNAL_URL: http://localhost:9000
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  storefront:
+    image: ${REGISTRY:-}medusa-storefront:latest
+    build:
+      context: ./apps/storefront
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      MEDUSA_BACKEND_URL: http://backend:9000
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: https://${DOMAIN:-localhost}
+    ports:
+      - "8000:8000"
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  chatbot-service:
+    image: ${REGISTRY:-}chatbot-service:latest
+    build:
+      context: ./chatbot-service
+    depends_on:
+      - backend
+    environment:
+      ENVIRONMENT: production
+      MEDUSA_BASE_URL: http://backend:9000
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ecomoi}
+      REDIS_URL: redis://redis:6379
+    deploy:
+      mode: replicated
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+  redis_data:

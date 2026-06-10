@@ -1,4 +1,5 @@
 from app.core.config import settings
+from app.repositories.ai_usage_repository import _date_arg
 from app.services.ai_usage_service import (
     PROVIDER_CONFIDENCE_SCORES,
     cost_context_from_request_attributes,
@@ -59,3 +60,7 @@ def test_cost_context_infers_messenger_psid_from_session_id():
 
     assert context["external_user_id"] == "psid_2"
     assert context["channel"] == "MESSENGER"
+
+
+def test_ai_usage_snapshot_date_arg_accepts_iso_string():
+    assert _date_arg("2026-06-10").isoformat() == "2026-06-10"

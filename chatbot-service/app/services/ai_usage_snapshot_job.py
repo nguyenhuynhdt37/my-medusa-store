@@ -46,7 +46,7 @@ async def refresh_recent_daily_ai_usage_snapshots() -> None:
     today = date.today()
     for day in (today - timedelta(days=1), today):
         try:
-            await repository.refresh_daily_snapshot(date=day.isoformat())
+            await repository.refresh_daily_snapshot(date=day)
         except Exception as exc:
             print("[AI_USAGE_SNAPSHOT_FAILED]", {"date": day.isoformat(), "error": str(exc)}, flush=True)
 

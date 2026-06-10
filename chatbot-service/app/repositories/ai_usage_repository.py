@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from datetime import date as date_type
+from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
@@ -122,9 +124,10 @@ class AIUsageRepository:
             "monthly_projection": await self.monthly_projection(),
         }
 
-    async def refresh_daily_snapshot(self, date: str | None = None) -> dict[str, Any]:
+    async def refresh_daily_snapshot(self, date: str | date_type | None = None) -> dict[str, Any]:
+        snapshot_date = _date_arg(date)
         date_expr = "$1::date" if date else "CURRENT_DATE"
-        args = [date] if date else []
+        args = [snapshot_date] if snapshot_date else []
         row = await self._fetchrow(
             f"""
             INSERT INTO daily_ai_usage (
@@ -361,6 +364,16 @@ def _date_filter(start_at: str | None, end_at: str | None) -> tuple[str, list[An
         values.append(end_at)
         clauses.append(f"created_at < ${len(values)}::timestamptz")
     return (f"WHERE {' AND '.join(clauses)}" if clauses else "", values)
+
+
+def _date_arg(value: str | date_type | None) -> date_type | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date_type):
+        return value
+    return date_type.fromisoformat(str(value))
 
 
 def _append_where(where: str, clause: str | None) -> str:

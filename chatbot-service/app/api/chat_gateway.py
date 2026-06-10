@@ -9,8 +9,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.clients.lex_runtime import LexRuntimeClient, get_lex_runtime_client, normalize_lex_messages
 from app.services.ai_usage_service import record_lex_usage
 from app.services.escalation import should_escalate_to_admin
+from app.services.moderation import ABUSIVE_LANGUAGE_MESSAGE, moderate_customer_message
 
 router = APIRouter()
+
+HANDOVER_MESSAGE = (
+    "Mình đang chuyển bạn đến nhân viên hỗ trợ. "
+    "Bạn chờ trong giây lát, nhân viên sẽ tiếp nhận cuộc trò chuyện này ngay khi có thể."
+)
 
 
 class AIProcessRequest(BaseModel):
@@ -30,6 +36,7 @@ async def process_ai_request(
     text = body.message.strip()
     channel = str(body.customer_context.get("channel") or "WEB").upper()
     external_user_id = body.customer_context.get("external_user_id")
+    moderation = moderate_customer_message(text)
     pre_escalation = should_escalate_to_admin(message=text)
 
     print(
@@ -42,10 +49,32 @@ async def process_ai_request(
         flush=True,
     )
 
+    if moderation.blocked:
+        return {
+            "reply": ABUSIVE_LANGUAGE_MESSAGE,
+            "messages": [{"text": ABUSIVE_LANGUAGE_MESSAGE}],
+            "intent": "BlockedAbusiveLanguage",
+            "confidence": 1.0,
+            "escalation": {
+                "escalate": False,
+                "reason": moderation.reason,
+                "confidence": 1.0,
+            },
+            "metadata": {
+                "ai": {
+                    "intent": "BlockedAbusiveLanguage",
+                    "moderation": {
+                        "blocked": True,
+                        "reason": moderation.reason,
+                    },
+                }
+            },
+        }
+
     if pre_escalation.escalate:
         return {
-            "reply": None,
-            "messages": [],
+            "reply": HANDOVER_MESSAGE,
+            "messages": [{"text": HANDOVER_MESSAGE}],
             "intent": "HumanHandover",
             "confidence": pre_escalation.confidence,
             "escalation": pre_escalation.__dict__,

@@ -7,6 +7,8 @@ import { syncGuestChatToCustomer } from "../../../utils/chat-guest-merge"
 import { sendMessengerMessage } from "../../../utils/messenger"
 
 const LOG_PREFIX = "[chat:store:process]"
+const HANDOVER_MESSAGE =
+  "Mình đang chuyển bạn đến nhân viên hỗ trợ. Bạn chờ trong giây lát, nhân viên sẽ tiếp nhận cuộc trò chuyện này ngay khi có thể."
 
 const aiServiceUrl = () =>
   (process.env.CHATBOT_SERVICE_URL || "http://chatbot-service:8080").replace(/\/webhook$/, "").replace(/\/$/, "")
@@ -208,6 +210,11 @@ export const POST = async (
 
   const escalation = aiResult.escalation || { escalate: false, reason: "ai_handled" }
   const nextStatus = escalation.escalate ? "WAITING_ADMIN" : "BOT_HANDLED"
+  const aiMessages = Array.isArray(aiResult.messages) ? aiResult.messages : []
+  const responseMessages =
+    escalation.escalate && !aiMessages.some((message: any) => String(message?.text || "").trim())
+      ? [{ text: HANDOVER_MESSAGE }]
+      : aiMessages
   const previousStatus = conversation.status
   const previousMetadata = (conversation.admin_metadata || {}) as Record<string, any>
   const unreadAdminCount =
@@ -242,7 +249,7 @@ export const POST = async (
     created_at: Date
     payload?: unknown
   }> = []
-  for (const aiMessage of aiResult.messages || []) {
+  for (const aiMessage of responseMessages) {
     const text = (aiMessage.text || "").trim()
     if (!text) continue
 

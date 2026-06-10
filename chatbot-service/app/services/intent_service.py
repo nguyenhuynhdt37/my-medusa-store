@@ -174,7 +174,18 @@ class IntentService:
         return text_response(random.choice(greetings))
 
     async def fallback(self) -> DialogflowCXResponse:
-        return text_response("Mình chưa hiểu yêu cầu của bạn. Bạn có thể hỏi giá sản phẩm hoặc trạng thái đơn hàng nhé.")
+        return rich_response(
+            "Mình chưa hiểu rõ yêu cầu của bạn. Bạn có muốn gặp nhân viên hỗ trợ không?",
+            {
+                "handover_prompt": {
+                    "actions": [
+                        {"label": "Có", "value": "gặp nhân viên"},
+                        {"label": "Không", "value": "continue_bot"},
+                    ]
+                }
+            },
+            {"search_status": "fallback", "handover_prompted": True},
+        )
 
     async def shipping_policy(self) -> DialogflowCXResponse:
         return text_response(

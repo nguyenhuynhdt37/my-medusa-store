@@ -23,6 +23,12 @@ type BotMessage = {
   payload?: {
     product?: ProductCard
     products?: ProductCard[]
+    handover_prompt?: {
+      actions?: Array<{
+        label?: string
+        value?: string
+      }>
+    }
   }
 }
 
@@ -53,6 +59,16 @@ type PresenceEntry = {
 }
 
 const suggestedQuestions = i18n.chat.suggestedQuestions
+
+const roleFromSenderType = (senderType?: string): BotMessage["role"] => {
+  if (senderType === "customer" || senderType === "guest") {
+    return "user"
+  }
+  if (senderType === "admin") {
+    return "admin"
+  }
+  return "bot"
+}
 
 const initialMessages: BotMessage[] = [
   {
@@ -334,7 +350,55 @@ const ProductCards = ({ payload }: { payload?: BotMessage["payload"] }) => {
   )
 }
 
-const ChatMessage = ({ message }: { message: BotMessage }) => {
+const HandoverPromptActions = ({
+  payload,
+  onAction,
+}: {
+  payload?: BotMessage["payload"]
+  onAction: (value: string) => void
+}) => {
+  const actions = payload?.handover_prompt?.actions || []
+
+  if (!actions.length) {
+    return null
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {actions.map((action) => {
+        const label = action.label || action.value || ""
+        const value = action.value || label
+        if (!label) {
+          return null
+        }
+
+        return (
+          <button
+            key={`${label}-${value}`}
+            className={clsx(
+              "h-8 rounded-full border px-4 text-xs font-bold transition duration-200 active:scale-95",
+              value === "gặp nhân viên"
+                ? "border-black bg-black text-white hover:bg-gray-800"
+                : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-400 hover:bg-white"
+            )}
+            type="button"
+            onClick={() => onAction(value)}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const ChatMessage = ({
+  message,
+  onHandoverPromptAction,
+}: {
+  message: BotMessage
+  onHandoverPromptAction: (value: string) => void
+}) => {
   const senderLabel =
     message.role === "bot"
       ? "🤖 Trợ lý Medusan"
@@ -380,6 +444,9 @@ const ChatMessage = ({ message }: { message: BotMessage }) => {
           <FormattedText text={message.text} />
         )}
         {message.role === "bot" ? <ProductCards payload={message.payload} /> : null}
+        {message.role === "bot" ? (
+          <HandoverPromptActions payload={message.payload} onAction={onHandoverPromptAction} />
+        ) : null}
       </div>
     </div>
   )
@@ -520,7 +587,7 @@ const CustomChat = () => {
       if (data.messages && data.messages.length > 0) {
         const historyMessages = data.messages.map((m: ApiHistoryMessage) => ({
           id: m.id,
-          role: m.sender_type === "customer" || m.sender_type === "guest" ? "user" : m.sender_type === "admin" ? "admin" : "bot",
+          role: roleFromSenderType(m.sender_type),
           text: m.content,
           created_at: m.created_at || new Date().toISOString(),
           isSystem: Boolean(m.metadata?.system),
@@ -896,7 +963,7 @@ const CustomChat = () => {
       if (data.userMessage?.id) {
         const serverUserMessage: BotMessage = {
           id: data.userMessage.id,
-          role: data.userMessage.sender_type === "customer" ? "user" : "admin",
+          role: roleFromSenderType(data.userMessage.sender_type),
           text: data.userMessage.content || trimmed,
           created_at: data.userMessage.created_at || optimisticCreatedAt,
         }
@@ -909,11 +976,6 @@ const CustomChat = () => {
 
       if (!response.ok) {
         throw new Error(data?.error || "Chatbot request failed")
-      }
-
-      if (data.intent === "HumanHandover") {
-        setIsLoading(false)
-        return
       }
 
       const botMessages = (data.messages || []).map(
@@ -942,6 +1004,12 @@ const CustomChat = () => {
       setMessages((current) => {
         return mergeMessagesById(current, botMessages)
       })
+
+      if (data.intent === "HumanHandover") {
+        setIsLoading(false)
+        return
+      }
+
       if (botMessages.length > 0) {
         setIsLoading(false)
       }
@@ -963,6 +1031,31 @@ const CustomChat = () => {
       setIsLoading(false)
     } finally {
     }
+  }
+
+  const handleHandoverPromptAction = (value: string) => {
+    if (value === "gặp nhân viên") {
+      void sendMessage("gặp nhân viên")
+      return
+    }
+
+    const createdAt = new Date().toISOString()
+    setMessages((current) =>
+      mergeMessagesById(current, [
+        {
+          id: crypto.randomUUID(),
+          role: "user",
+          text: "Không",
+          created_at: createdAt,
+        },
+        {
+          id: crypto.randomUUID(),
+          role: "bot",
+          text: "Bạn có thể nhập lại câu hỏi rõ hơn, ví dụ: tên sản phẩm, mức giá, hoặc mã đơn hàng cần kiểm tra.",
+          created_at: new Date(Date.now() + 1).toISOString(),
+        },
+      ])
+    )
   }
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -1041,7 +1134,11 @@ const CustomChat = () => {
                     </div>
                   )}
                   {sortMessagesByCreatedAt(messages).map((message) => (
-                    <ChatMessage key={message.id} message={message} />
+                    <ChatMessage
+                      key={message.id}
+                      message={message}
+                      onHandoverPromptAction={handleHandoverPromptAction}
+                    />
                   ))}
                 </>
               )}

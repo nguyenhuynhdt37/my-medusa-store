@@ -213,7 +213,13 @@ async def test_order_status_misclassification_without_order_text_falls_back():
     response = await service.handle(make_request("OrderStatusIntent", {}, text="asdf qwer zxcv không hiểu gì"))
 
     message = response.fulfillment_response.messages[0].text.text[0]
-    assert "Mình chưa hiểu yêu cầu" in message
+    assert "Mình chưa hiểu rõ yêu cầu" in message
+    assert "gặp nhân viên" in message
+    payload = response.fulfillment_response.messages[1].payload
+    assert payload["handover_prompt"]["actions"] == [
+        {"label": "Có", "value": "gặp nhân viên"},
+        {"label": "Không", "value": "continue_bot"},
+    ]
 
 
 @pytest.mark.asyncio

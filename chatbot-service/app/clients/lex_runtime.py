@@ -5,6 +5,8 @@ from typing import Any
 
 from app.core.config import settings
 
+_session_locks: dict[str, asyncio.Lock] = {}
+
 
 class LexRuntimeClient:
     def __init__(self) -> None:
@@ -26,6 +28,21 @@ class LexRuntimeClient:
         if not settings.lex_bot_id or not settings.lex_bot_alias_id:
             raise RuntimeError("AWS Lex is not configured on FastAPI Chat Service.")
 
+        lock = _session_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            return await self._recognize_text_with_retry(
+                session_id=session_id,
+                text=text,
+                request_attributes=request_attributes,
+            )
+
+    async def _recognize_text_with_retry(
+        self,
+        *,
+        session_id: str,
+        text: str,
+        request_attributes: dict[str, str] | None,
+    ) -> dict[str, Any]:
         def call() -> dict[str, Any]:
             return self.client.recognize_text(
                 botId=settings.lex_bot_id,
@@ -36,7 +53,24 @@ class LexRuntimeClient:
                 requestAttributes=request_attributes or {},
             )
 
-        return await asyncio.to_thread(call)
+        for attempt in range(3):
+            try:
+                return await asyncio.to_thread(call)
+            except Exception as exc:
+                if not _is_lex_conflict(exc) or attempt == 2:
+                    raise
+                await asyncio.sleep(0.15 * (attempt + 1))
+
+        raise RuntimeError("Lex recognize_text retry loop exited unexpectedly.")
+
+
+def _is_lex_conflict(exc: Exception) -> bool:
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        code = ((response.get("Error") or {}).get("Code") or "").lower()
+        if code == "conflictexception":
+            return True
+    return exc.__class__.__name__ == "ConflictException"
 
 
 def normalize_lex_messages(messages: list[dict[str, Any]] | None) -> list[dict[str, Any]]:

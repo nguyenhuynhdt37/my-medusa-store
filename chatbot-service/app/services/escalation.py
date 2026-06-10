@@ -35,8 +35,9 @@ KEYWORD_GROUPS: list[tuple[str, list[str]]] = [
 
 
 def normalize(value: str | None) -> str:
-    text = unicodedata.normalize("NFD", value or "").encode("ascii", "ignore").decode("ascii")
-    text = text.lower().replace("đ", "d")
+    text = (value or "").replace("Đ", "D").replace("đ", "d")
+    text = unicodedata.normalize("NFD", text).encode("ascii", "ignore").decode("ascii")
+    text = text.lower()
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", text)).strip()
 
 
@@ -49,6 +50,7 @@ def should_escalate_to_admin(
 ) -> EscalationResult:
     normalized_message = normalize(message)
     normalized_intent = normalize(intent)
+    is_fallback_intent = normalized_intent in {"fallbackintent", "fallback"} or "fallback" in normalized_intent
 
     if normalized_intent == "humanhandoffintent" or "handover" in normalized_intent:
         return EscalationResult(True, "human_handoff", confidence)
@@ -57,13 +59,13 @@ def should_escalate_to_admin(
         if any(keyword in normalized_message for keyword in keywords):
             return EscalationResult(True, reason, confidence)
 
-    if confidence is not None and confidence < 0.7:
-        return EscalationResult(True, "low_confidence", confidence)
-
-    if normalized_intent in {"fallbackintent", "fallback"} or "fallback" in normalized_intent:
-        return EscalationResult(True, "fallback", confidence)
+    if is_fallback_intent:
+        return EscalationResult(False, "fallback_prompt", confidence)
 
     if failed_response_count >= 3:
         return EscalationResult(True, "repeated_ai_failure", confidence)
+
+    if confidence is not None and confidence < 0.7:
+        return EscalationResult(True, "low_confidence", confidence)
 
     return EscalationResult(False, "ai_handled", confidence)
