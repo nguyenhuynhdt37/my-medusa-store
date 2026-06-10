@@ -33,6 +33,11 @@ async def ai_usage_trends(
     repository = AIUsageRepository(await get_pool())
     return {
         "label": "Estimated AI Cost",
+        "cost_label": "Estimated Cost",
+        "disclaimer": (
+            "Dữ liệu được tính toán từ request usage và bảng giá cấu hình, "
+            "không phải hóa đơn thực tế từ AWS hoặc Google Cloud."
+        ),
         "cost_by_day": await repository.cost_by_day(days=days),
     }
 

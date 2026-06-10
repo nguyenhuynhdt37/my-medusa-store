@@ -88,6 +88,11 @@ class AIUsageRepository:
         where, values = _date_filter(start_at, end_at)
         return {
             "label": "Estimated AI Cost",
+            "cost_label": "Estimated Cost",
+            "disclaimer": (
+                "Dữ liệu được tính toán từ request usage và bảng giá cấu hình, "
+                "không phải hóa đơn thực tế từ AWS hoặc Google Cloud."
+            ),
             "total": await self._estimated_total(where, values),
             "by_provider": await self._provider_breakdown(where, values),
             "by_channel": await self._breakdown_by_dimension("channel", "channel", where, values, limit=50),
@@ -202,7 +207,7 @@ class AIUsageRepository:
         )
         data = _record(row)
         data["formula"] = "projected_cost_usd = cost_to_date / elapsed_days * days_in_month"
-        data["label"] = "Estimated monthly AI cost projection"
+        data["label"] = "Estimated monthly cost projection"
         return data
 
     async def _aggregate(self, column: str, where: str, values: list[Any]) -> list[dict[str, Any]]:
@@ -253,7 +258,23 @@ class AIUsageRepository:
               COALESCE(SUM(completion_tokens), 0)::int AS completion_tokens,
               COALESCE(SUM(total_tokens), 0)::int AS total_tokens,
               COALESCE(SUM(duration_ms), 0)::float8 AS duration_ms,
-              MAX(memory_mb)::int AS memory_mb
+              MAX(memory_mb)::int AS memory_mb,
+              CASE provider
+                WHEN 'LEX' THEN 95
+                WHEN 'GEMINI' THEN 100
+                WHEN 'LAMBDA' THEN 60
+                ELSE 50
+              END::int AS confidence_score,
+              CASE provider
+                WHEN 'LEX' THEN 'Actual Lex Runtime recognize_text request count'
+                WHEN 'GEMINI' THEN 'Actual provider usageMetadata tokens'
+                WHEN 'LAMBDA' THEN 'FastAPI fulfillment request duration estimate'
+                ELSE 'Estimated usage'
+              END AS usage_basis,
+              CASE provider
+                WHEN 'LAMBDA' THEN 'Estimated Fulfillment Cost'
+                ELSE 'Estimated AI Cost'
+              END AS cost_label
             FROM ai_usage
             {where}
             GROUP BY provider

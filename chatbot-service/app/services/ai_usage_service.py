@@ -25,6 +25,13 @@ def lambda_cost(duration_ms: float, memory_mb: int | None = None, request_count:
     return round(request_cost + duration_cost, 8)
 
 
+PROVIDER_CONFIDENCE_SCORES = {
+    "LEX": 95,
+    "GEMINI": 100,
+    "LAMBDA": 60,
+}
+
+
 async def record_lex_usage(
     *,
     conversation_id: str | None,
@@ -52,7 +59,13 @@ async def record_lex_usage(
             request_count=request_count,
             estimated_cost_usd=lex_cost(request_count),
             unit_prices={"text_request_usd": settings.lex_text_request_price_usd},
-            metadata={"session_id": session_id, "billing_unit": "text_request"},
+            metadata={
+                "session_id": session_id,
+                "billing_unit": "text_request",
+                "usage_source": "ACTUAL_SERVICE_REQUEST",
+                "cost_source": "CONFIGURED_UNIT_PRICE",
+                "confidence_score": PROVIDER_CONFIDENCE_SCORES["LEX"],
+            },
         )
     except Exception as exc:
         print("[AI_USAGE_RECORD_FAILED]", {"provider": "LEX", "error": str(exc)}, flush=True)
@@ -100,6 +113,9 @@ async def record_gemini_usage(
                 "session_id": context.get("session_id"),
                 "operation": operation,
                 "usage_metadata": usage_metadata,
+                "token_source": "ACTUAL_PROVIDER_USAGE",
+                "cost_source": "ACTUAL_PROVIDER_USAGE_WITH_CONFIGURED_UNIT_PRICE",
+                "confidence_score": PROVIDER_CONFIDENCE_SCORES["GEMINI"],
             },
         )
     except Exception as exc:
@@ -143,6 +159,14 @@ async def record_lambda_usage(
                 "session_id": context.get("session_id"),
                 "operation": operation,
                 "billing_unit": "request_plus_gb_second",
+                "duration_source": "FASTAPI_REQUEST_DURATION",
+                "cost_label": "Estimated Fulfillment Cost",
+                "cost_source": "FASTAPI_REQUEST_DURATION_WITH_CONFIGURED_LAMBDA_PRICES",
+                "confidence_score": PROVIDER_CONFIDENCE_SCORES["LAMBDA"],
+                "note": (
+                    "duration_ms is measured inside the FastAPI Lex fulfillment webhook. "
+                    "It is not AWS Lambda billed duration from CloudWatch or billing APIs."
+                ),
             },
         )
     except Exception as exc:

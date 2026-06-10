@@ -1,5 +1,6 @@
 from app.core.config import settings
 from app.services.ai_usage_service import (
+    PROVIDER_CONFIDENCE_SCORES,
     cost_context_from_request_attributes,
     gemini_cost,
     lambda_cost,
@@ -20,11 +21,19 @@ def test_gemini_cost_uses_prompt_and_candidate_tokens(monkeypatch):
     assert gemini_cost(prompt_tokens=1000, completion_tokens=500) == 0.00155
 
 
-def test_lambda_cost_uses_invocation_duration_and_memory(monkeypatch):
+def test_fulfillment_cost_estimate_uses_duration_and_memory(monkeypatch):
     monkeypatch.setattr(settings, "lambda_request_price_per_1m_usd", 0.20)
     monkeypatch.setattr(settings, "lambda_duration_price_per_gb_second_usd", 0.0000166667)
 
     assert lambda_cost(duration_ms=1000, memory_mb=1024, request_count=1) == 0.00001687
+
+
+def test_provider_confidence_scores_document_usage_quality():
+    assert PROVIDER_CONFIDENCE_SCORES == {
+        "LEX": 95,
+        "GEMINI": 100,
+        "LAMBDA": 60,
+    }
 
 
 def test_cost_context_reads_lex_request_attributes():
