@@ -16,30 +16,38 @@ type Props = {
 }
 
 export async function generateStaticParams() {
-  const product_categories = await listCategories()
+  try {
+    const product_categories = await listCategories()
 
-  if (!product_categories) {
+    if (!product_categories.length) {
+      return []
+    }
+
+    const countryCodes = await listRegions().then((regions: StoreRegion[]) =>
+      regions?.map((r) => r.countries?.map((c) => c.iso_2)).flat()
+    )
+
+    const categoryHandles = product_categories.map(
+      (category: HttpTypes.StoreProductCategory) => category.handle
+    )
+
+    return countryCodes
+      ?.map((countryCode: string | undefined) =>
+        categoryHandles.map((handle: string) => ({
+          countryCode,
+          category: [handle],
+        }))
+      )
+      .flat()
+  } catch (error) {
+    console.warn(
+      `Skipping static category generation: ${
+        error instanceof Error ? error.message : "Medusa is unavailable"
+      }.`
+    )
+
     return []
   }
-
-  const countryCodes = await listRegions().then((regions: StoreRegion[]) =>
-    regions?.map((r) => r.countries?.map((c) => c.iso_2)).flat()
-  )
-
-  const categoryHandles = product_categories.map(
-    (category: HttpTypes.StoreProductCategory) => category.handle
-  )
-
-  const staticParams = countryCodes
-    ?.map((countryCode: string | undefined) =>
-      categoryHandles.map((handle: string) => ({
-        countryCode,
-        category: [handle],
-      }))
-    )
-    .flat()
-
-  return staticParams
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
