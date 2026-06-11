@@ -121,6 +121,18 @@ services:
       STOREFRONT_COUNTRY_CODE: vn
     ports:
       - "127.0.0.1:8080:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     restart: always
 
 volumes:
