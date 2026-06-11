@@ -39,9 +39,12 @@ class Settings(BaseSettings):
     storefront_internal_url: str = "http://localhost:8000"
     storefront_country_code: str = "dk"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
     gemini_timeout_seconds: float = 10.0
+    gemini_rate_limit_cooldown_seconds: float = 60.0
     gemini_enabled: bool = True
+    chatbot_trace_enabled: bool = True
+    chatbot_trace_max_string_chars: int = 4000
     ai_cost_tracking_enabled: bool = True
     lex_text_request_price_usd: float = 0.00075
     gemini_input_price_per_1m_tokens_usd: float = 0.30

@@ -1,6 +1,11 @@
 import pytest
 
-from app.services.intent_nlu import classify_intent, expand_product_abbreviations, infer_intent_from_text
+from app.services.intent_nlu import (
+    classify_intent,
+    expand_product_abbreviations,
+    infer_intent_from_text,
+    normalize_resolved_intent,
+)
 
 
 @pytest.mark.parametrize(
@@ -65,3 +70,16 @@ def test_multi_intent_uses_priority_order():
 )
 def test_expand_product_abbreviations(text, expanded):
     assert expand_product_abbreviations(text) == expanded
+
+
+@pytest.mark.parametrize(
+    ("lex_intent", "resolved"),
+    [
+        ("ProductPriceIntent", "product_price"),
+        ("ShippingPolicyIntent", "shipping_policy"),
+        ("ProductRecommendationIntent", "product_recommendation"),
+        ("FallbackIntent", "fallback"),
+    ],
+)
+def test_normalize_resolved_intent_supports_lex_names(lex_intent, resolved):
+    assert normalize_resolved_intent(lex_intent) == resolved

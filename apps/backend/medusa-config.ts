@@ -13,6 +13,20 @@ const cookieOptions =
       }
     : undefined
 
+const viteAllowedHosts = Array.from(
+  new Set(
+    [
+      "localhost",
+      "127.0.0.1",
+      ".ngrok-free.app",
+      process.env.PUBLIC_HOST,
+      process.env.PUBLIC_BACKEND_ORIGIN
+        ? new URL(process.env.PUBLIC_BACKEND_ORIGIN).host
+        : undefined,
+    ].filter(Boolean) as string[]
+  )
+)
+
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
@@ -34,6 +48,23 @@ module.exports = defineConfig({
   },
   admin: {
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
+    vite: (config) => {
+      config.server = {
+        ...config.server,
+        allowedHosts: [
+          ...new Set([
+            ...viteAllowedHosts,
+            ...(
+              Array.isArray(config.server?.allowedHosts)
+                ? config.server.allowedHosts
+                : []
+            ),
+          ]),
+        ],
+      }
+
+      return config
+    },
   },
   // admin: {
   //   vite: (config) => {

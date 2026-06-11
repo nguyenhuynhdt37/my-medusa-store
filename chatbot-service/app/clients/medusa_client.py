@@ -6,6 +6,7 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.core.debug_log import trace
 from app.core.exceptions import MedusaAPIError, MedusaTimeoutError
 
 
@@ -33,6 +34,17 @@ class MedusaClient:
         headers: dict[str, str] | None = None,
         json_body: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        trace(
+            "MEDUSA_API_REQUEST",
+            {
+                "method": method,
+                "base_url": self.base_url,
+                "path": path,
+                "params": params or {},
+                "headers": headers or {},
+                "json_body": json_body,
+            },
+        )
         try:
             async with httpx.AsyncClient(
                 base_url=self.base_url,
@@ -46,17 +58,54 @@ class MedusaClient:
                     json=json_body,
                 )
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                trace(
+                    "MEDUSA_API_RESPONSE",
+                    {
+                        "method": method,
+                        "path": path,
+                        "status_code": response.status_code,
+                        "response": data,
+                    },
+                )
+                return data
         except httpx.TimeoutException as exc:
+            trace(
+                "MEDUSA_API_TIMEOUT",
+                {
+                    "method": method,
+                    "path": path,
+                    "error_type": exc.__class__.__name__,
+                    "error": str(exc),
+                },
+            )
             raise MedusaTimeoutError("Medusa API request timed out") from exc
         except httpx.HTTPStatusError as exc:
             status_code = exc.response.status_code
             body = exc.response.text
+            trace(
+                "MEDUSA_API_HTTP_ERROR",
+                {
+                    "method": method,
+                    "path": path,
+                    "status_code": status_code,
+                    "response_body": body,
+                },
+            )
             raise MedusaAPIError(
                 f"Medusa API returned HTTP {status_code}: {body}",
                 status_code=status_code,
             ) from exc
         except httpx.HTTPError as exc:
+            trace(
+                "MEDUSA_API_TRANSPORT_ERROR",
+                {
+                    "method": method,
+                    "path": path,
+                    "error_type": exc.__class__.__name__,
+                    "error": str(exc),
+                },
+            )
             raise MedusaAPIError(f"Medusa API request failed: {exc}") from exc
 
     async def list_products(self, query: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
