@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from tenacity import retry, retry_if_exception, wait_exponential, stop_after_attempt
 
 from app.core.config import settings
+from app.core.debug_log import trace
 from app.core.exceptions import GeminiAPIError
 
 
@@ -23,15 +24,29 @@ class GeminiClient:
         api_key: str | None,
         model: str = "gemini-2.5-flash",
         timeout_seconds: float = 10.0,
+        rate_limit_cooldown_seconds: float = 60.0,
         enabled: bool = True,
     ) -> None:
         self.api_key = api_key
         self.model = model
         self.timeout = httpx.Timeout(timeout_seconds)
+        self.rate_limit_cooldown_seconds = rate_limit_cooldown_seconds
+        self.rate_limited_until = 0.0
         self.enabled = enabled
 
     def is_enabled(self) -> bool:
-        return bool(self.enabled and self.api_key)
+        return bool(self.enabled and self.api_key and time.monotonic() >= self.rate_limited_until)
+
+    def _mark_rate_limited(self) -> None:
+        self.rate_limited_until = time.monotonic() + self.rate_limit_cooldown_seconds
+        trace(
+            "GEMINI_RATE_LIMIT_COOLDOWN",
+            {
+                "model": self.model,
+                "cooldown_seconds": self.rate_limit_cooldown_seconds,
+                "rate_limited_until_monotonic": self.rate_limited_until,
+            },
+        )
 
     async def rewrite_customer_reply(
         self,
@@ -139,12 +154,6 @@ class GeminiClient:
         )
         return result.text
 
-    @retry(
-        retry=retry_if_exception(lambda exc: isinstance(exc, GeminiAPIError) and "429" in str(exc)),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        stop=stop_after_attempt(3),
-        reraise=True,
-    )
     async def _generate_text_with_usage(
         self,
         prompt: str,
@@ -197,6 +206,17 @@ class GeminiClient:
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:
+                trace(
+                    "GEMINI_GENERATE_REQUEST",
+                    {
+                        "model": self.model,
+                        "url": url,
+                        "response_mime_type": response_mime_type,
+                        "max_output_tokens": max_output_tokens,
+                        "prompt": prompt,
+                        "body": body,
+                    },
+                )
                 response = await client.post(
                     url,
                     headers={
@@ -207,7 +227,42 @@ class GeminiClient:
                 )
                 response.raise_for_status()
                 data = response.json()
+                trace(
+                    "GEMINI_GENERATE_RESPONSE",
+                    {
+                        "model": self.model,
+                        "status_code": response.status_code,
+                        "usage_metadata": data.get("usageMetadata"),
+                        "response": data,
+                    },
+                )
+        except httpx.HTTPStatusError as exc:
+            status_code = exc.response.status_code
+            if status_code == 429:
+                self._mark_rate_limited()
+            body = exc.response.text[:500]
+            trace(
+                "GEMINI_GENERATE_HTTP_ERROR",
+                {
+                    "model": self.model,
+                    "status_code": status_code,
+                    "response_body": exc.response.text,
+                    "prompt": prompt,
+                },
+            )
+            raise GeminiAPIError(
+                f"Gemini API request failed with status {status_code} for model {self.model}: {body}"
+            ) from exc
         except httpx.HTTPError as exc:
+            trace(
+                "GEMINI_GENERATE_TRANSPORT_ERROR",
+                {
+                    "model": self.model,
+                    "error_type": exc.__class__.__name__,
+                    "error": str(exc),
+                    "prompt": prompt,
+                },
+            )
             raise GeminiAPIError(f"Gemini API request failed: {exc}") from exc
 
         candidates = data.get("candidates") or []
@@ -371,5 +426,6 @@ def get_gemini_client() -> GeminiClient:
         api_key=settings.gemini_api_key,
         model=settings.gemini_model,
         timeout_seconds=settings.gemini_timeout_seconds,
+        rate_limit_cooldown_seconds=settings.gemini_rate_limit_cooldown_seconds,
         enabled=settings.gemini_enabled,
     )

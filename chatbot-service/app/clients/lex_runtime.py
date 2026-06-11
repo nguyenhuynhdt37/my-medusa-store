@@ -4,6 +4,7 @@ import asyncio
 from typing import Any
 
 from app.core.config import settings
+from app.core.debug_log import trace
 
 _session_locks: dict[str, asyncio.Lock] = {}
 
@@ -28,6 +29,17 @@ class LexRuntimeClient:
         if not settings.lex_bot_id or not settings.lex_bot_alias_id:
             raise RuntimeError("AWS Lex is not configured on FastAPI Chat Service.")
 
+        trace(
+            "LEX_RECOGNIZE_REQUEST",
+            {
+                "session_id": session_id,
+                "text": text,
+                "request_attributes": request_attributes or {},
+                "bot_id": settings.lex_bot_id,
+                "bot_alias_id": settings.lex_bot_alias_id,
+                "locale_id": settings.lex_locale_id,
+            },
+        )
         lock = _session_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             return await self._recognize_text_with_retry(
@@ -55,8 +67,27 @@ class LexRuntimeClient:
 
         for attempt in range(3):
             try:
-                return await asyncio.to_thread(call)
+                response = await asyncio.to_thread(call)
+                trace(
+                    "LEX_RECOGNIZE_RESPONSE",
+                    {
+                        "session_id": session_id,
+                        "attempt": attempt + 1,
+                        "response": response,
+                    },
+                )
+                return response
             except Exception as exc:
+                trace(
+                    "LEX_RECOGNIZE_ERROR",
+                    {
+                        "session_id": session_id,
+                        "attempt": attempt + 1,
+                        "error_type": exc.__class__.__name__,
+                        "error": str(exc),
+                        "will_retry": _is_lex_conflict(exc) and attempt < 2,
+                    },
+                )
                 if not _is_lex_conflict(exc) or attempt == 2:
                     raise
                 await asyncio.sleep(0.15 * (attempt + 1))

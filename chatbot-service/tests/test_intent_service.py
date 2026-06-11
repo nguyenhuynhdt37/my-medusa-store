@@ -111,10 +111,14 @@ class FakeMedusaClient:
 
 
 class FakeGeminiClient:
+    def __init__(self):
+        self.rewrite_called = False
+
     def is_enabled(self):
         return True
 
     async def rewrite_customer_reply(self, **kwargs):
+        self.rewrite_called = True
         return f"Gemini: {kwargs['draft_reply']}"
 
 
@@ -526,12 +530,14 @@ async def test_warranty_policy_response():
 
 
 @pytest.mark.asyncio
-async def test_gemini_rewrites_only_customer_text():
-    service = IntentService(FakeMedusaClient(), gemini_client=FakeGeminiClient())
+async def test_product_price_does_not_call_gemini_rewrite():
+    gemini_client = FakeGeminiClient()
+    service = IntentService(FakeMedusaClient(), gemini_client=gemini_client)
     response = await service.handle(make_request("ProductPrice", {"product": "áo hoodie"}))
 
     message = response.fulfillment_response.messages[0].text.text[0]
-    assert message.startswith("Gemini:")
+    assert gemini_client.rewrite_called is False
+    assert not message.startswith("Gemini:")
     assert response.session_info.parameters["current_product_name"] == "Oversized Hoodie"
     assert response.fulfillment_response.messages[1].payload["product"]["title"] == "Oversized Hoodie"
 

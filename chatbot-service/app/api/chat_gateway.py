@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.clients.lex_runtime import LexRuntimeClient, get_lex_runtime_client, normalize_lex_messages
+from app.core.debug_log import trace
 from app.services.ai_usage_service import record_lex_usage
 from app.clients.gemini_client import GeminiClient, get_gemini_client
 from app.services.ai_usage_service import record_gemini_usage
@@ -86,8 +87,27 @@ async def process_ai_request(
         },
         flush=True,
     )
+    trace(
+        "CHAT_GATEWAY_REQUEST",
+        {
+            "conversation_id": body.conversation_id,
+            "message": text,
+            "channel": channel,
+            "customer_context": body.customer_context,
+            "session_context": body.session_context,
+            "has_authorization": bool(authorization),
+        },
+    )
 
     if moderation.blocked:
+        trace(
+            "CHAT_GATEWAY_MODERATION_BLOCKED",
+            {
+                "conversation_id": body.conversation_id,
+                "message": text,
+                "reason": moderation.reason,
+            },
+        )
         return {
             "reply": ABUSIVE_LANGUAGE_MESSAGE,
             "messages": [{"text": ABUSIVE_LANGUAGE_MESSAGE}],
@@ -110,6 +130,14 @@ async def process_ai_request(
         }
 
     if pre_escalation.escalate:
+        trace(
+            "CHAT_GATEWAY_PRE_ESCALATION",
+            {
+                "conversation_id": body.conversation_id,
+                "message": text,
+                "escalation": pre_escalation.__dict__,
+            },
+        )
         return {
             "reply": HANDOVER_MESSAGE,
             "messages": [{"text": HANDOVER_MESSAGE}],
@@ -126,6 +154,14 @@ async def process_ai_request(
         }
 
     local_intent = infer_intent_from_text(text)
+    trace(
+        "CHAT_GATEWAY_LOCAL_INTENT",
+        {
+            "conversation_id": body.conversation_id,
+            "message": text,
+            "local_intent": local_intent,
+        },
+    )
 
     session_id = (
         f"fb_{external_user_id}"
@@ -144,6 +180,14 @@ async def process_ai_request(
             },
             "messages": [],
         }
+        trace(
+            "CHAT_GATEWAY_SMALLTALK_SHORT_CIRCUIT",
+            {
+                "conversation_id": body.conversation_id,
+                "local_intent": local_intent,
+                "response": response,
+            },
+        )
     else:
         response = await lex_client.recognize_text(
             session_id=session_id,
@@ -158,20 +202,55 @@ async def process_ai_request(
                 "session_id": session_id,
             },
         )
+        trace(
+            "CHAT_GATEWAY_LEX_RESPONSE",
+            {
+                "conversation_id": body.conversation_id,
+                "session_id": session_id,
+                "response": response,
+            },
+        )
 
     is_fallback = _is_fallback_response(response)
     has_gemini = gemini_client is not None and gemini_client.is_enabled()
     has_local_specific_intent = local_intent and local_intent not in {"fallback", "FallbackIntent"}
+    trace(
+        "CHAT_GATEWAY_ROUTE_DECISION",
+        {
+            "conversation_id": body.conversation_id,
+            "local_intent": local_intent,
+            "is_fallback": is_fallback,
+            "has_gemini": has_gemini,
+            "has_local_specific_intent": has_local_specific_intent,
+        },
+    )
     
     if is_fallback and has_gemini and not has_local_specific_intent and local_intent not in _SMALLTALK_INTENTS:
         normalized_text = None
         try:
             lex_session_attributes = response.get("sessionState", {}).get("sessionAttributes", {})
+            trace(
+                "CHAT_GATEWAY_GEMINI_NORMALIZE_START",
+                {
+                    "conversation_id": body.conversation_id,
+                    "text": text,
+                    "session_attributes": lex_session_attributes,
+                },
+            )
             result = await gemini_client.normalize_user_query_with_usage(
                 user_text=text,
                 session_parameters=lex_session_attributes,
             )
             normalized_text = result.text.strip()
+            trace(
+                "CHAT_GATEWAY_GEMINI_NORMALIZE_RESULT",
+                {
+                    "conversation_id": body.conversation_id,
+                    "original_text": text,
+                    "normalized_text": normalized_text,
+                    "usage_metadata": result.usage_metadata,
+                },
+            )
             if normalized_text and normalized_text.lower() != text.lower():
                 response = await lex_client.recognize_text(
                     session_id=session_id,
@@ -179,8 +258,25 @@ async def process_ai_request(
                     request_attributes=response.get("requestAttributes") or {},
                 )
                 is_fallback = _is_fallback_response(response)
+                trace(
+                    "CHAT_GATEWAY_LEX_RESPONSE_AFTER_NORMALIZE",
+                    {
+                        "conversation_id": body.conversation_id,
+                        "normalized_text": normalized_text,
+                        "is_fallback": is_fallback,
+                        "response": response,
+                    },
+                )
         except Exception as e:
             print(f"[GATEWAY] Gemini query rewrite error: {e}", flush=True)
+            trace(
+                "CHAT_GATEWAY_GEMINI_NORMALIZE_ERROR",
+                {
+                    "conversation_id": body.conversation_id,
+                    "error_type": e.__class__.__name__,
+                    "error": str(e),
+                },
+            )
 
     # --- LOCAL FALLBACK EXECUTION FIX ---
     # Running outside the Gemini block so that local intents run even if Gemini is disabled or rate-limited.
@@ -200,11 +296,37 @@ async def process_ai_request(
                     "sessionAttributes": lex_session_attributes,
                 },
             )
+            trace(
+                "CHAT_GATEWAY_LOCAL_FALLBACK_EXECUTION_START",
+                {
+                    "conversation_id": body.conversation_id,
+                    "local_intent": local_intent,
+                    "mock_request": mock_request.model_dump(by_alias=True),
+                },
+            )
             dialogflow_response = await intent_service.handle(mock_request, authorization_header=authorization)
             response = dialogflow_response.model_dump(by_alias=True)
             is_fallback = _is_fallback_response(response)
+            trace(
+                "CHAT_GATEWAY_LOCAL_FALLBACK_EXECUTION_RESPONSE",
+                {
+                    "conversation_id": body.conversation_id,
+                    "local_intent": local_intent,
+                    "is_fallback": is_fallback,
+                    "response": response,
+                },
+            )
         except Exception as e:
             print(f"[GATEWAY] Local fallback execution error: {e}", flush=True)
+            trace(
+                "CHAT_GATEWAY_LOCAL_FALLBACK_EXECUTION_ERROR",
+                {
+                    "conversation_id": body.conversation_id,
+                    "local_intent": local_intent,
+                    "error_type": e.__class__.__name__,
+                    "error": str(e),
+                },
+            )
 
     if is_fallback and local_intent in _SMALLTALK_INTENTS:
         response["sessionState"] = response.get("sessionState") or {}
@@ -287,7 +409,7 @@ async def process_ai_request(
         flush=True,
     )
 
-    return {
+    result = {
         "reply": reply,
         "messages": messages,
         "intent": intent_name,
@@ -295,6 +417,14 @@ async def process_ai_request(
         "escalation": escalation.__dict__,
         "metadata": metadata,
     }
+    trace(
+        "CHAT_GATEWAY_RESPONSE",
+        {
+            "conversation_id": body.conversation_id,
+            "response": result,
+        },
+    )
+    return result
 
 
 @router.post("/ai/process")
