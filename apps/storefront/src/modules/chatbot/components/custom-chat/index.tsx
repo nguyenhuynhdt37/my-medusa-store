@@ -74,6 +74,25 @@ const chatDebugTable = (rows: unknown[]) => {
   }
 }
 
+const createClientId = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID()
+  }
+
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"))
+    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex
+      .slice(6, 8)
+      .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 const roleFromSenderType = (senderType?: string): BotMessage["role"] => {
   if (senderType === "customer" || senderType === "guest") {
     return "user"
@@ -124,7 +143,7 @@ const getGuestId = () => {
     return existing
   }
 
-  const next = "guest_" + crypto.randomUUID()
+  const next = "guest_" + createClientId()
   window.localStorage.setItem(key, next)
   document.cookie = `${key}=${encodeURIComponent(next)}; path=/; max-age=31536000; SameSite=Lax`
   return next
@@ -943,7 +962,7 @@ const CustomChat = () => {
       return
     }
 
-    const optimisticUserId = crypto.randomUUID()
+    const optimisticUserId = createClientId()
     const optimisticCreatedAt = new Date().toISOString()
 
     setMessages((current) =>
@@ -1000,7 +1019,7 @@ const CustomChat = () => {
 
       const botMessages = (data.messages || []).map(
         (item: ApiMessage): BotMessage => ({
-          id: item.id || crypto.randomUUID(),
+          id: item.id || createClientId(),
           role: "bot",
           text: cleanBotText(item.text || t("chat.errors.noResponse")),
           created_at: item.created_at || new Date().toISOString(),
@@ -1042,7 +1061,7 @@ const CustomChat = () => {
       setMessages((current) => [
         ...current,
         {
-          id: crypto.randomUUID(),
+          id: createClientId(),
           role: "bot",
           text,
           created_at: new Date().toISOString(),
@@ -1063,13 +1082,13 @@ const CustomChat = () => {
     setMessages((current) =>
       mergeMessagesById(current, [
         {
-          id: crypto.randomUUID(),
+          id: createClientId(),
           role: "user",
           text: "Không",
           created_at: createdAt,
         },
         {
-          id: crypto.randomUUID(),
+          id: createClientId(),
           role: "bot",
           text: "Bạn có thể nhập lại câu hỏi rõ hơn, ví dụ: tên sản phẩm, mức giá, hoặc mã đơn hàng cần kiểm tra.",
           created_at: new Date(Date.now() + 1).toISOString(),

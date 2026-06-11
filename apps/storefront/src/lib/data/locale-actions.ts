@@ -3,7 +3,12 @@
 import { sdk } from "@lib/config"
 import { revalidateTag } from "next/cache"
 import { cookies as nextCookies } from "next/headers"
-import { getAuthHeaders, getCacheTag, getCartId } from "./cookies"
+import {
+  getAuthHeaders,
+  getCacheTag,
+  getCartId,
+  storefrontCookieOptions,
+} from "./cookies"
 
 const LOCALE_COOKIE_NAME = "_medusa_locale"
 
@@ -27,8 +32,7 @@ export const setLocaleCookie = async (locale: string) => {
   cookies.set(LOCALE_COOKIE_NAME, locale, {
     maxAge: 60 * 60 * 24 * 365, // 1 year
     httpOnly: false, // Allow client-side access
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
+    ...storefrontCookieOptions,
   })
 }
 

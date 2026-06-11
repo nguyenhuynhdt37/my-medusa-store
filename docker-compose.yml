@@ -48,10 +48,13 @@ services:
       WATCHPACK_POLLING: "true"
       CHAT_REALTIME_URL: http://localhost:9001
       CHAT_REALTIME_PORT: 9001
-      VITE_CHAT_WS_URL: ws://localhost:9001
+      VITE_CHAT_WS_URL: ${PUBLIC_CHAT_WS_ORIGIN:-${PUBLIC_CHAT_WS_PROTOCOL:-ws}://${PUBLIC_HOST:-localhost}:9001}
       MEDUSA_INTERNAL_URL: http://localhost:9000
       MEDUSA_ADMIN_ONBOARDING_TYPE: nextjs
       MEDUSA_ADMIN_ONBOARDING_NEXTJS_DIRECTORY: apps/storefront
+      STORE_CORS: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:8000}
+      ADMIN_CORS: http://localhost:5173,${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:9000}
+      AUTH_CORS: http://localhost:5173,${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:9000},${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:8000}
       PNPM_HOME: /pnpm
     ports:
       - "9000:9000"
@@ -100,7 +103,9 @@ services:
       CHOKIDAR_USEPOLLING: "true"
       WATCHPACK_POLLING: "true"
       MEDUSA_BACKEND_URL: http://backend:9000
-      NEXT_PUBLIC_CHAT_WS_URL: ws://localhost:9001
+      NEXT_PUBLIC_BASE_URL: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:8000}
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:9000}
+      NEXT_PUBLIC_CHAT_WS_URL: ${PUBLIC_CHAT_WS_ORIGIN:-${PUBLIC_CHAT_WS_PROTOCOL:-ws}://${PUBLIC_HOST:-localhost}:9001}
       NEXT_PUBLIC_STRIPE_KEY: ""
       PNPM_HOME: /pnpm
     ports:

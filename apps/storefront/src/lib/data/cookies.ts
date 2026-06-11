@@ -1,6 +1,15 @@
 import "server-only"
 import { cookies as nextCookies } from "next/headers"
 
+export const storefrontCookieOptions = {
+  path: "/",
+  sameSite: (process.env.COOKIE_SAME_SITE || "lax") as
+    | "lax"
+    | "strict"
+    | "none",
+  secure: process.env.COOKIE_SECURE === "true",
+}
+
 export const getAuthHeaders = async (): Promise<
   { authorization: string } | Record<string, never>
 > => {
@@ -54,8 +63,7 @@ export const setAuthToken = async (token: string) => {
   cookies.set("_medusa_jwt", token, {
     maxAge: 60 * 60 * 24 * 7,
     httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
+    ...storefrontCookieOptions,
   })
 }
 
@@ -63,6 +71,7 @@ export const removeAuthToken = async () => {
   const cookies = await nextCookies()
   cookies.set("_medusa_jwt", "", {
     maxAge: -1,
+    ...storefrontCookieOptions,
   })
 }
 
@@ -76,8 +85,7 @@ export const setCartId = async (cartId: string) => {
   cookies.set("_medusa_cart_id", cartId, {
     maxAge: 60 * 60 * 24 * 7,
     httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
+    ...storefrontCookieOptions,
   })
 }
 
@@ -85,5 +93,6 @@ export const removeCartId = async () => {
   const cookies = await nextCookies()
   cookies.set("_medusa_cart_id", "", {
     maxAge: -1,
+    ...storefrontCookieOptions,
   })
 }
