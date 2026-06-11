@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt
 
 FROM base AS builder
 WORKDIR /app
+ARG VITE_CHAT_WS_URL
+ENV VITE_CHAT_WS_URL=${VITE_CHAT_WS_URL}
 # Copy the entire monorepo
 COPY . .
 RUN pnpm install --frozen-lockfile
@@ -21,7 +23,7 @@ WORKDIR /app
 COPY --from=builder /app /app
 
 WORKDIR /app/apps/backend
-EXPOSE 9000
+EXPOSE 9000 9001
 
 # Start medusa
 CMD ["pnpm", "start"]
