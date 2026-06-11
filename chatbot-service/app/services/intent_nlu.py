@@ -122,7 +122,9 @@ PRODUCT_ABBREVIATIONS = {
 def normalize_resolved_intent(value: Any) -> str | None:
     if not value:
         return None
-    normalized = normalize_text(str(value))
+    raw = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", str(value)).strip()
+    raw = re.sub(r"\bintent\b", "", raw, flags=re.IGNORECASE)
+    normalized = normalize_text(raw)
     resolved = INTENT_ALIASES.get(normalized, normalized.replace(" ", "_"))
     return resolved if resolved in ALLOWED_INTENTS else None
 

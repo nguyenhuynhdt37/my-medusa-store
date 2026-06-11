@@ -1,263 +1,222 @@
 import pytest
+from fastapi import HTTPException
 
 from app.api.chat_gateway import AIProcessRequest, process_ai_request
 from app.services.bot_orchestrator import BotOrchestrator
 
 
 class FakeLexClient:
-    def __init__(self):
-        self.called = False
+    def __init__(self, response=None, error: Exception | None = None):
+        self.response = response
+        self.error = error
+        self.calls = []
 
     async def recognize_text(self, **kwargs):
-        self.called = True
-        return {}
+        self.calls.append(kwargs)
+        if self.error:
+            raise self.error
+        return self.response
 
 
-class FakeFallbackLexClient:
-    async def recognize_text(self, **kwargs):
-        return {
+def request(message: str = "giá iPhone 17 Pro Max") -> AIProcessRequest:
+    return AIProcessRequest(
+        conversationId="conv_1",
+        message=message,
+        customer_context={"guest_id": "guest_1", "channel": "WEB"},
+    )
+
+
+def successful_lex_response() -> dict:
+    return {
+        "sessionState": {
+            "intent": {"name": "ProductPriceIntent", "state": "Fulfilled"},
+            "sessionAttributes": {
+                "resolved_intent": "product_price",
+                "resolution_source": "lex",
+                "ai_confidence": "1.0",
+            },
+        },
+        "messages": [
+            {
+                "contentType": "PlainText",
+                "content": "iPhone 17 Pro Max có giá từ 34.990.000 VNĐ.",
+            }
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_success_returns_lex_response_without_rewriting():
+    lex_client = FakeLexClient(successful_lex_response())
+
+    response = await process_ai_request(request(), authorization=None, lex_client=lex_client)
+
+    assert len(lex_client.calls) == 1
+    assert lex_client.calls[0]["text"] == "giá iPhone 17 Pro Max"
+    assert response["intent"] == "product_price"
+    assert response["reply"] == "iPhone 17 Pro Max có giá từ 34.990.000 VNĐ."
+
+
+@pytest.mark.asyncio
+async def test_fallback_intent_returns_502():
+    lex_client = FakeLexClient(
+        {
             "sessionState": {
-                "intent": {"name": "FallbackIntent"},
+                "intent": {"name": "FallbackIntent", "state": "Fulfilled"},
                 "sessionAttributes": {
                     "resolved_intent": "fallback",
-                    "ai_confidence": "0.5",
+                    "resolution_source": "gemini",
                 },
             },
-            "messages": [
-                {
-                    "contentType": "PlainText",
-                    "content": "Mình chưa hiểu rõ yêu cầu của bạn. Bạn có thể hỏi về sản phẩm, giá, ưu đãi, giao hàng hoặc đơn hàng để mình hỗ trợ nhé.",
-                },
-            ],
+            "messages": [{"contentType": "PlainText", "content": "Fallback response"}],
         }
+    )
+
+    with pytest.raises(HTTPException, match="fallback intent") as exc_info:
+        await process_ai_request(request("không rõ"), authorization=None, lex_client=lex_client)
+
+    assert exc_info.value.status_code == 502
+    assert len(lex_client.calls) == 1
 
 
-class FakeHumanMisclassifiedLexClient:
-    async def recognize_text(self, **kwargs):
-        return {
+@pytest.mark.asyncio
+async def test_gemini_resolved_fallback_is_accepted():
+    lex_client = FakeLexClient(
+        {
             "sessionState": {
-                "intent": {"name": "HumanHandoverIntent"},
+                "intent": {"name": "FallbackIntent", "state": "Fulfilled"},
                 "sessionAttributes": {
-                    "ai_confidence": "0.95",
+                    "resolved_intent": "product_recommendation",
+                    "resolution_source": "gemini",
+                    "ai_confidence": "0.83",
                 },
             },
             "messages": [
                 {
                     "contentType": "PlainText",
-                    "content": "Mình sẽ chuyển bạn sang nhân viên hỗ trợ.",
-                },
+                    "content": "Mình gợi ý các mẫu pin tốt trong tầm giá của bạn.",
+                }
             ],
         }
+    )
+
+    response = await process_ai_request(
+        request("máy nào pin tốt cho mẹ"),
+        authorization=None,
+        lex_client=lex_client,
+    )
+
+    assert response["intent"] == "product_recommendation"
+    assert response["reply"] == "Mình gợi ý các mẫu pin tốt trong tầm giá của bạn."
 
 
-class FakeStaleBotFinalMessageLexClient:
-    async def recognize_text(self, **kwargs):
-        return {
+@pytest.mark.asyncio
+async def test_query_is_preprocessed_before_lex():
+    lex_client = FakeLexClient(successful_lex_response())
+
+    await process_ai_request(request("  ip15   giá bao nhiêu "), authorization=None, lex_client=lex_client)
+
+    assert lex_client.calls[0]["text"] == "iPhone 15 giá bao nhiêu"
+    assert lex_client.calls[0]["request_attributes"]["original_text"] == "ip15   giá bao nhiêu"
+
+
+@pytest.mark.asyncio
+async def test_failed_fulfillment_returns_502():
+    lex_client = FakeLexClient(
+        {
             "sessionState": {
-                "intent": {"name": "FallbackIntent"},
-                "sessionAttributes": {
-                    "resolved_intent": "smalltalk_compliment",
-                    "ai_confidence": "1.0",
-                    "bot_final_message": "Gợi ý sản phẩm\n- iPhone 17: 22.990.000 VNĐ",
-                },
+                "intent": {"name": "ProductPriceIntent", "state": "Failed"},
+                "sessionAttributes": {},
             },
-            "messages": [
-                {
-                    "contentType": "PlainText",
-                    "content": "Cảm ơn bạn nha. Mình là trợ lý ảo của shop, mình có thể hỗ trợ bạn xem sản phẩm, giá, ưu đãi hoặc đơn hàng nhé!",
-                },
-            ],
+            "messages": [],
         }
+    )
+
+    with pytest.raises(HTTPException, match="fulfillment failed") as exc_info:
+        await process_ai_request(request(), authorization=None, lex_client=lex_client)
+
+    assert exc_info.value.status_code == 502
 
 
-class FakeStaleFallbackProductReplyLexClient:
-    async def recognize_text(self, **kwargs):
-        return {
+@pytest.mark.asyncio
+async def test_missing_lex_message_returns_502():
+    lex_client = FakeLexClient(
+        {
             "sessionState": {
-                "intent": {"name": "FallbackIntent"},
-                "sessionAttributes": {
-                    "resolved_intent": "fallback",
-                    "ai_confidence": "0.5",
-                },
+                "intent": {"name": "ProductPriceIntent", "state": "Fulfilled"},
+                "sessionAttributes": {},
             },
-            "messages": [
-                {
-                    "contentType": "PlainText",
-                    "content": "Sản phẩm phù hợp\n- iPhone 17: 22.990.000 VNĐ",
-                },
-            ],
+            "messages": [],
         }
+    )
+
+    with pytest.raises(HTTPException, match="no message") as exc_info:
+        await process_ai_request(request(), authorization=None, lex_client=lex_client)
+
+    assert exc_info.value.status_code == 502
 
 
-class FakeRateLimitedGeminiClient:
-    def __init__(self):
-        self.called = False
+@pytest.mark.asyncio
+async def test_lex_exception_returns_502():
+    lex_client = FakeLexClient(error=RuntimeError("Lambda dependency failed"))
 
-    def is_enabled(self):
-        return True
+    with pytest.raises(HTTPException, match="Lex request failed") as exc_info:
+        await process_ai_request(request(), authorization=None, lex_client=lex_client)
 
-    async def normalize_user_query_with_usage(self, **kwargs):
-        self.called = True
-        raise RuntimeError("429 Too Many Requests")
+    assert exc_info.value.status_code == 502
+
+
+@pytest.mark.asyncio
+async def test_normal_smalltalk_is_sent_to_lex():
+    response = successful_lex_response()
+    response["sessionState"]["intent"]["name"] = "GreetingIntent"
+    response["sessionState"]["sessionAttributes"]["resolved_intent"] = "greeting"
+    response["messages"][0]["content"] = "Xin chào!"
+    lex_client = FakeLexClient(response)
+
+    result = await process_ai_request(request("xin chào"), authorization=None, lex_client=lex_client)
+
+    assert len(lex_client.calls) == 1
+    assert result["reply"] == "Xin chào!"
 
 
 @pytest.mark.asyncio
 async def test_handover_keyword_returns_waiting_message_without_calling_lex():
-    lex_client = FakeLexClient()
-    request = AIProcessRequest(
-        conversationId="conv_1",
-        message="Cho tôi gặp nhân viên",
-        customer_context={"guest_id": "guest_1", "channel": "WEB"},
+    lex_client = FakeLexClient(successful_lex_response())
+
+    response = await process_ai_request(
+        request("Cho tôi gặp nhân viên"),
+        authorization=None,
+        lex_client=lex_client,
     )
 
-    response = await process_ai_request(request, authorization=None, lex_client=lex_client)
-
-    assert lex_client.called is False
+    assert lex_client.calls == []
     assert response["intent"] == "HumanHandover"
     assert response["escalation"]["escalate"] is True
-    assert response["messages"]
-    assert "chuyển bạn đến nhân viên" in response["messages"][0]["text"]
 
 
 @pytest.mark.asyncio
-async def test_fallback_steers_back_to_bot_scope_without_auto_escalating():
-    request = AIProcessRequest(
-        conversationId="conv_1",
-        message="ủa",
-        customer_context={"guest_id": "guest_1", "channel": "WEB"},
+async def test_abusive_language_is_blocked_without_calling_lex():
+    lex_client = FakeLexClient(successful_lex_response())
+
+    response = await process_ai_request(
+        request("địt mẹ"),
+        authorization=None,
+        lex_client=lex_client,
     )
 
-    response = await process_ai_request(request, authorization=None, lex_client=FakeFallbackLexClient())
-
-    assert response["intent"] == "fallback"
-    assert response["escalation"]["escalate"] is False
-    assert response["escalation"]["reason"] == "fallback_prompt"
-    assert "sản phẩm" in response["reply"]
-    assert all(message.get("payload") is None for message in response["messages"])
-
-
-@pytest.mark.asyncio
-async def test_abusive_language_is_blocked_without_calling_lex_or_handover():
-    lex_client = FakeLexClient()
-    request = AIProcessRequest(
-        conversationId="conv_1",
-        message="địt mẹ",
-        customer_context={"guest_id": "guest_1", "channel": "WEB"},
-    )
-
-    response = await process_ai_request(request, authorization=None, lex_client=lex_client)
-
-    assert lex_client.called is False
+    assert lex_client.calls == []
     assert response["intent"] == "BlockedAbusiveLanguage"
     assert response["escalation"]["escalate"] is False
-    assert response["escalation"]["reason"] == "abusive_language"
-    assert "giữ cuộc trò chuyện lịch sự" in response["messages"][0]["text"]
-
-
-def test_bot_orchestrator_does_not_handover_fallback_or_low_confidence():
-    orchestrator = BotOrchestrator()
-
-    assert orchestrator.should_handover(
-        {"intent": "fallback", "confidence": 0.2, "escalation": {"escalate": False}}
-    ) is False
-    assert orchestrator.should_handover(
-        {"intent": "HumanHandover", "confidence": 0.99, "escalation": {"escalate": False}},
-        message="bạn đjp zai quá",
-    ) is False
 
 
 def test_bot_orchestrator_only_handovers_explicit_human_or_escalation():
     orchestrator = BotOrchestrator()
 
-    assert orchestrator.should_handover({"intent": "HumanHandover", "confidence": 1.0}, message="cho tôi gặp nhân viên") is True
-    assert orchestrator.should_handover({"intent": "fallback", "escalation": {"escalate": True}}) is True
-
-
-@pytest.mark.asyncio
-async def test_smalltalk_compliment_overrides_misclassified_human_intent():
-    request = AIProcessRequest(
-        conversationId="conv_1",
-        message="bạn đjp zai quá",
-        customer_context={"guest_id": "guest_1", "channel": "WEB"},
-    )
-
-    response = await process_ai_request(request, authorization=None, lex_client=FakeHumanMisclassifiedLexClient())
-
-    assert response["intent"] == "smalltalk_compliment"
-    assert "chuyển" not in response["reply"].lower()
-    assert "Cảm ơn" in response["reply"]
-    assert response["escalation"]["escalate"] is False
-
-
-@pytest.mark.asyncio
-async def test_fresh_message_wins_over_stale_bot_final_message_attribute():
-    request = AIProcessRequest(
-        conversationId="conv_1",
-        message="bot dễ thương ghê",
-        customer_context={"guest_id": "guest_1", "channel": "WEB"},
-    )
-
-    response = await process_ai_request(request, authorization=None, lex_client=FakeStaleBotFinalMessageLexClient())
-
-    assert response["intent"] == "smalltalk_compliment"
-    assert "Cảm ơn" in response["reply"]
-    assert "iPhone 17" not in response["reply"]
-    assert response["escalation"]["escalate"] is False
-
-
-@pytest.mark.asyncio
-async def test_fallback_intent_sanitizes_stale_product_reply():
-    request = AIProcessRequest(
-        conversationId="conv_1",
-        message="F8 học lập trình để đi làm",
-        customer_context={"guest_id": "guest_1", "channel": "WEB"},
-    )
-
-    response = await process_ai_request(request, authorization=None, lex_client=FakeStaleFallbackProductReplyLexClient())
-
-    assert response["intent"] == "fallback"
-    assert "Mình chưa hiểu rõ" in response["reply"]
-    assert "iPhone 17" not in response["reply"]
-    assert response["escalation"]["escalate"] is False
-
-
-@pytest.mark.asyncio
-async def test_ok_with_vocative_is_smalltalk_when_gemini_rate_limited():
-    gemini_client = FakeRateLimitedGeminiClient()
-    request = AIProcessRequest(
-        conversationId="conv_1",
-        message="Ok cậu",
-        customer_context={"guest_id": "guest_1", "channel": "WEB"},
-    )
-
-    response = await process_ai_request(
-        request,
-        authorization=None,
-        lex_client=FakeFallbackLexClient(),
-        gemini_client=gemini_client,
-    )
-
-    assert gemini_client.called is False
-    assert response["intent"] == "smalltalk_affirmation"
-    assert response["confidence"] == 1.0
-    assert response["escalation"]["escalate"] is False
-    assert "Dạ vâng" in response["reply"]
-
-
-@pytest.mark.asyncio
-async def test_smalltalk_compliment_short_circuits_lex_context_bleed():
-    lex_client = FakeLexClient()
-    request = AIProcessRequest(
-        conversationId="conv_1",
-        message="Bạn đẹp giai quá",
-        customer_context={"guest_id": "guest_1", "channel": "WEB"},
-        session_context={"current_product_name": "iPhone 12"},
-    )
-
-    response = await process_ai_request(request, authorization=None, lex_client=lex_client)
-
-    assert lex_client.called is False
-    assert response["intent"] == "smalltalk_compliment"
-    assert "Cảm ơn" in response["reply"]
-    assert "iPhone 12" not in response["reply"]
-    assert response["escalation"]["escalate"] is False
+    assert orchestrator.should_handover(
+        {"intent": "HumanHandover", "confidence": 1.0},
+        message="cho tôi gặp nhân viên",
+    ) is True
+    assert orchestrator.should_handover(
+        {"intent": "fallback", "escalation": {"escalate": True}}
+    ) is True

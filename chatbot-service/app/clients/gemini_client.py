@@ -48,50 +48,6 @@ class GeminiClient:
             },
         )
 
-    async def rewrite_customer_reply(
-        self,
-        *,
-        intent: str,
-        user_text: str | None,
-        draft_reply: str,
-        session_parameters: dict[str, Any] | None = None,
-        payload: dict[str, Any] | None = None,
-    ) -> str:
-        if not self.is_enabled():
-            return draft_reply
-
-        prompt = build_rewrite_prompt(
-            intent=intent,
-            user_text=user_text,
-            draft_reply=draft_reply,
-            session_parameters=session_parameters,
-            payload=payload,
-        )
-        data = await self._generate_text(prompt)
-        return data.strip() or draft_reply
-
-    async def rewrite_customer_reply_with_usage(
-        self,
-        *,
-        intent: str,
-        user_text: str | None,
-        draft_reply: str,
-        session_parameters: dict[str, Any] | None = None,
-        payload: dict[str, Any] | None = None,
-    ) -> GeminiTextResult:
-        if not self.is_enabled():
-            return GeminiTextResult(text=draft_reply)
-
-        prompt = build_rewrite_prompt(
-            intent=intent,
-            user_text=user_text,
-            draft_reply=draft_reply,
-            session_parameters=session_parameters,
-            payload=payload,
-        )
-        result = await self._generate_text_with_usage(prompt)
-        return GeminiTextResult(text=result.text.strip() or draft_reply, usage_metadata=result.usage_metadata)
-
     async def resolve_customer_intent(
         self,
         *,
@@ -274,57 +230,6 @@ class GeminiClient:
             raise GeminiAPIError("Gemini API returned an empty response")
         return GeminiTextResult(text=text, usage_metadata=data.get("usageMetadata"))
 
-
-    async def normalize_user_query_with_usage(
-        self,
-        *,
-        user_text: str,
-        session_parameters: dict[str, Any] | None = None,
-    ) -> GeminiTextResult:
-        if not self.is_enabled() or not user_text:
-            return GeminiTextResult(text=user_text)
-
-        prompt = build_query_normalization_prompt(
-            user_text=user_text,
-            session_parameters=session_parameters,
-        )
-        result = await self._generate_text_with_usage(
-            prompt,
-            response_mime_type="text/plain",
-            max_output_tokens=200,
-        )
-        return result
-
-
-def build_rewrite_prompt(
-    *,
-    intent: str,
-    user_text: str | None,
-    draft_reply: str,
-    session_parameters: dict[str, Any] | None,
-    payload: dict[str, Any] | None,
-) -> str:
-    facts = {
-        "intent": intent,
-        "user_text": user_text,
-        "session_parameters": session_parameters or {},
-        "payload": payload or {},
-        "draft_reply": draft_reply,
-    }
-    return (
-        "Rewrite this webhook reply in natural Vietnamese for an ecommerce customer.\n"
-        "Style requirements:\n"
-        "- Make the answer easy to scan in Dialogflow Messenger.\n"
-        "- Product detail: add one short lead sentence, then keep product title, image Markdown, price, promotion, sizes, material, variant prices, and product link.\n"
-        "- Product list or recommendation: use a compact plain Markdown bullet list with title, price, and promotion only. Do not include links in the text.\n"
-        "- Promotion not found: answer naturally and suggest asking for a specific product price.\n"
-        "- Order answers: keep order code, status, total, and dates exactly as provided.\n"
-        "- Keep it concise; avoid long explanations.\n"
-        "- CRITICAL ANTI-HALLUCINATION RULE: Do NOT invent facts, product specs, operating systems (e.g., iPhones run iOS, not Android/AI), prices, or promotions. Only describe information EXACTLY as provided in the facts payload. If a fact is missing, omit it.\n\n"
-        f"{json.dumps(facts, ensure_ascii=False, default=str)}"
-    )
-
-
 def build_intent_resolution_prompt(
     *,
     lex_intent: str,
@@ -357,58 +262,6 @@ def build_intent_resolution_prompt(
         "Do not answer the customer. Do not invent product names unless they are present in session context or user text.\n"
         "Return exactly this JSON shape:\n"
         '{"intent":"one_allowed_intent","product_name":null,"product_b_name":null,"order_code":null,"confidence":0.0}\n\n'
-        f"{json.dumps(facts, ensure_ascii=False, default=str)}"
-    )
-
-
-def build_query_normalization_prompt(
-    *,
-    user_text: str,
-    session_parameters: dict[str, Any] | None = None,
-) -> str:
-    facts = {
-        "user_text": user_text,
-        "session_parameters": session_parameters or {},
-    }
-    return (
-        "You are a Vietnamese text normalizer for an ecommerce chatbot NLU system.\n"
-        "The user typed an informal, abbreviated, or unclear Vietnamese message.\n"
-        "Your job: rewrite it into a clean, standard Vietnamese sentence that a chatbot can understand.\n\n"
-        "Rules:\n"
-        "1. Fix abbreviations: 'ip' → 'iPhone', 'ss' → 'Samsung', 'bn/bnh' → 'bao nhiêu', 'đt' → 'điện thoại', 'sp' → 'sản phẩm', 'k/ko/kg' → 'không'\n"
-        "2. Expand slang: 'giá sao' → 'giá bao nhiêu', 'thì sao' → 'giá bao nhiêu', 'bn' → 'bao nhiêu'\n"
-        "3. Keep product names and model numbers intact (e.g. 'ip 15' → 'iPhone 15', 'ip14 plus' → 'iPhone 14 Plus')\n"
-        "4. If the message is a short follow-up (e.g., '17 pro thì sao', 'có màu trắng không'), use the session_parameters context to fill in the missing entity (e.g., 'iPhone 17 Pro giá bao nhiêu', 'iPhone 15 có màu trắng không').\n"
-        "5. Make the sentence a clear question or statement\n"
-        "6. Return ONLY the rewritten sentence, nothing else\n"
-        "7. If the message is already clear, return it as-is\n"
-        "8. Do NOT add any explanation or prefix\n\n"
-        f"{json.dumps(facts, ensure_ascii=False, default=str)}\n"
-        "Rewritten:"
-    )
-
-def build_fallback_prompt(
-    *,
-    user_text: str | None,
-    session_parameters: dict[str, Any] | None,
-) -> str:
-    facts = {
-        "user_text": user_text,
-        "session_parameters": session_parameters or {},
-    }
-    return (
-        "You are an intelligent Vietnamese ecommerce assistant for a phone shop. The user's query could not be resolved to a specific intent.\n"
-        "Your task is to handle general shopping questions or ask one clarifying question.\n"
-        "Rules:\n"
-        "1. Do not invent prices, promotions, stock, order status, or shop policies. If asked about these without context, ask to clarify.\n"
-        "2. CRITICAL ANTI-HALLUCINATION RULE: Do NOT hallucinate facts or product features. iPhones run iOS, not Android. Only provide generally accepted public knowledge or strictly what is in the context.\n"
-        "3. If the user asks general shopping advice (e.g. 'what phone to buy for mom?'), answer generally, be helpful, and suggest they ask for specific product prices.\n"
-        "4. If missing a product name or order code for a specific query, ask ONE short clarifying question.\n"
-        "5. If the query is smalltalk, a compliment, or completely outside the scope of a phone shop, reply briefly and steer back to products, prices, promotions, shipping, or orders.\n"
-        "6. Set action='handover' ONLY when the user explicitly asks for a human/admin/nhân viên or uses /h. Never handover just because the message is unclear, off-topic, or low confidence.\n"
-        "7. If you answer, set action='answer' and put the response in 'answer'. If you clarify, set action='clarify' and put the response in 'clarifying_question'.\n"
-        "Return EXACTLY this JSON shape:\n"
-        '{"action":"answer|clarify|handover","answer":"...","clarifying_question":"...","confidence":0.0}\n\n'
         f"{json.dumps(facts, ensure_ascii=False, default=str)}"
     )
 

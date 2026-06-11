@@ -111,31 +111,22 @@ class FakeMedusaClient:
 
 
 class FakeGeminiClient:
-    def __init__(self):
-        self.rewrite_called = False
-
     def is_enabled(self):
         return True
 
-    async def rewrite_customer_reply(self, **kwargs):
-        self.rewrite_called = True
-        return f"Gemini: {kwargs['draft_reply']}"
-
 
 class FakeIntentResolvingGeminiClient(FakeGeminiClient):
-    async def resolve_customer_intent(self, **kwargs):
-        return {"intent": "product_recommendation", "confidence": 0.83}
+    def __init__(self):
+        self.resolve_called = False
 
-    async def generate_fallback_json_with_usage(self, **kwargs):
-        return {"action": "clarify", "clarifying_question": "Bạn cần mình hỗ trợ thông tin sản phẩm, giá hay đơn hàng ạ?", "confidence": 0.4}, None
+    async def resolve_customer_intent(self, **kwargs):
+        self.resolve_called = True
+        return {"intent": "product_recommendation", "confidence": 0.83}
 
 
 class FakeHumanResolvingGeminiClient(FakeGeminiClient):
     async def resolve_customer_intent(self, **kwargs):
         return {"intent": "human_handover", "confidence": 0.95}
-
-    async def generate_fallback_json_with_usage(self, **kwargs):
-        return {"action": "clarify", "clarifying_question": "Bạn muốn hỏi về sản phẩm, giá hay đơn hàng ạ?", "confidence": 0.5}, None
 
 
 def make_request(intent: str, parameters: dict, text: str | None = None):
@@ -530,16 +521,43 @@ async def test_warranty_policy_response():
 
 
 @pytest.mark.asyncio
-async def test_product_price_does_not_call_gemini_rewrite():
+async def test_product_price_response_uses_deterministic_business_data():
     gemini_client = FakeGeminiClient()
     service = IntentService(FakeMedusaClient(), gemini_client=gemini_client)
     response = await service.handle(make_request("ProductPrice", {"product": "áo hoodie"}))
 
     message = response.fulfillment_response.messages[0].text.text[0]
-    assert gemini_client.rewrite_called is False
     assert not message.startswith("Gemini:")
     assert response.session_info.parameters["current_product_name"] == "Oversized Hoodie"
     assert response.fulfillment_response.messages[1].payload["product"]["title"] == "Oversized Hoodie"
+
+
+@pytest.mark.asyncio
+async def test_specific_lex_intent_does_not_call_gemini_resolution():
+    gemini_client = FakeIntentResolvingGeminiClient()
+    service = IntentService(FakeMedusaClient(), gemini_client=gemini_client)
+
+    response = await service.handle(
+        make_request("ShippingPolicyIntent", {}, text="phí ship bao nhiêu")
+    )
+
+    assert gemini_client.resolve_called is False
+    assert response.session_info.parameters["resolved_intent"] == "shipping_policy"
+    assert response.session_info.parameters["resolution_source"] == "local_nlu"
+
+
+@pytest.mark.asyncio
+async def test_fallback_lex_intent_can_use_gemini_for_difficult_query():
+    gemini_client = FakeIntentResolvingGeminiClient()
+    service = IntentService(FakeMedusaClient(), gemini_client=gemini_client)
+
+    response = await service.handle(
+        make_request("FallbackIntent", {}, text="máy nào hợp mua cho mẹ")
+    )
+
+    assert gemini_client.resolve_called is True
+    assert response.session_info.parameters["resolved_intent"] == "product_recommendation"
+    assert response.session_info.parameters["resolution_source"] == "gemini"
 
 
 @pytest.mark.asyncio

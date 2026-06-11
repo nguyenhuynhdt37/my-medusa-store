@@ -16,7 +16,7 @@ class FakeResponse:
             "candidates": [
                 {
                     "content": {
-                        "parts": [{"text": "Đã viết lại"}],
+                        "parts": [{"text": "{\"intent\":\"product_price\",\"confidence\":0.9}"}],
                     }
                 }
             ],
@@ -62,14 +62,13 @@ async def test_gemini_generation_exposes_usage_metadata(monkeypatch):
     monkeypatch.setattr(httpx, "AsyncClient", FakeAsyncClient)
     client = GeminiClient(api_key="key", model="gemini-2.0-flash")
 
-    result = await client.rewrite_customer_reply_with_usage(
-        intent="product_price",
+    resolution, usage = await client.resolve_customer_intent_with_usage(
+        lex_intent="FallbackIntent",
         user_text="iPhone giá bao nhiêu",
-        draft_reply="iPhone giá 22.990.000 VNĐ",
     )
 
-    assert result.text == "Đã viết lại"
-    assert result.usage_metadata == {
+    assert resolution == {"intent": "product_price", "confidence": 0.9}
+    assert usage == {
         "promptTokenCount": 123,
         "candidatesTokenCount": 45,
         "totalTokenCount": 168,
@@ -82,10 +81,9 @@ async def test_gemini_429_starts_cooldown(monkeypatch):
     client = GeminiClient(api_key="key", model="gemini-2.5-flash", rate_limit_cooldown_seconds=60)
 
     with pytest.raises(Exception, match="429"):
-        await client.rewrite_customer_reply_with_usage(
-            intent="fallback",
+        await client.resolve_customer_intent_with_usage(
+            lex_intent="FallbackIntent",
             user_text="hello",
-            draft_reply="Xin chào",
         )
 
     assert client.is_enabled() is False

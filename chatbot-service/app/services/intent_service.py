@@ -146,7 +146,7 @@ class IntentService:
             },
         )
 
-        self._annotate_response(response, text_intent, gemini_confidence)
+        self._annotate_response(response, request.intent_name(), text_intent, gemini_confidence)
         finalized = await self._finalize_response(request, lex_intent, response, cost_context)
         trace(
             "INTENT_SERVICE_RESPONSE",
@@ -184,6 +184,17 @@ class IntentService:
                 },
             )
             return text_intent, None
+
+        if "fallback" not in lex_intent:
+            trace(
+                "INTENT_SERVICE_LEX_INTENT_ACCEPTED",
+                {
+                    "text": request.text,
+                    "lex_intent": lex_intent,
+                },
+            )
+            return None, None
+
         return await self._resolve_intent_with_gemini(request, lex_intent, cost_context)
 
     async def _dispatch_intent(
@@ -212,14 +223,14 @@ class IntentService:
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "greeting", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.greeting()
         if text_intent == "fallback":
-            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "gemini_fallback_or_handover", "lex_intent": lex_intent, "text_intent": text_intent})
-            return await self._gemini_fallback_or_handover(request, cost_context)
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "fallback", "lex_intent": lex_intent, "text_intent": text_intent})
+            return await self.fallback()
         if text_intent in {"smalltalk_affirmation", "smalltalk_negation", "smalltalk_compliment"}:
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": text_intent, "lex_intent": lex_intent, "text_intent": text_intent})
             return self._smalltalk_response(text_intent)
         if self._looks_like_product_context_bleed(request, lex_intent, text_intent):
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "context_bleed_fallback", "lex_intent": lex_intent, "text_intent": text_intent})
-            return await self._gemini_fallback_or_handover(request, cost_context)
+            return await self.fallback()
         if text_intent in {"top_expensive", "top_cheap", "best_sellers"}:
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "product_ranking", "ranking": text_intent, "lex_intent": lex_intent})
             return await self.product_ranking(request, ranking=text_intent)
@@ -258,9 +269,12 @@ class IntentService:
                 trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "order_tracking", "lex_intent": lex_intent, "text_intent": text_intent})
                 return await self.order_tracking(request, authorization_header=authorization_header)
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "order_tracking_fallback", "lex_intent": lex_intent, "text_intent": text_intent})
-            return await self._gemini_fallback_or_handover(request, cost_context)
-        trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "default_gemini_fallback_or_handover", "lex_intent": lex_intent, "text_intent": text_intent})
-        return await self._gemini_fallback_or_handover(request, cost_context)
+            return await self.fallback()
+        if "fallback" in lex_intent:
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "unresolved_fallback", "lex_intent": lex_intent, "text_intent": text_intent})
+            return await self.fallback()
+        trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "default_fallback", "lex_intent": lex_intent, "text_intent": text_intent})
+        return await self.fallback()
 
     def _is_handover_intent(self, request: DialogflowCXRequest, lex_intent: str, text_intent: str | None) -> bool:
         if text_intent == "human_handover":
@@ -359,11 +373,24 @@ class IntentService:
         return text_response("Mình chưa thể kết nối hệ thống bán hàng lúc này. Bạn vui lòng thử lại sau.", {"search_status": "medusa_api_error"})
 
     @staticmethod
-    def _annotate_response(response: DialogflowCXResponse, text_intent: str | None, gemini_confidence: float | None) -> None:
-        response.session_info.parameters["resolved_intent"] = text_intent or "fallback"
+    def _annotate_response(
+        response: DialogflowCXResponse,
+        lex_intent: str,
+        text_intent: str | None,
+        gemini_confidence: float | None,
+    ) -> None:
+        search_status = str(response.session_info.parameters.get("search_status") or "")
+        resolved_intent = (
+            "fallback"
+            if search_status == "fallback"
+            else text_intent or normalize_resolved_intent(lex_intent) or lex_intent
+        )
+        resolution_source = "gemini" if gemini_confidence is not None else ("local_nlu" if text_intent else "lex")
+        response.session_info.parameters["resolved_intent"] = resolved_intent
+        response.session_info.parameters["resolution_source"] = resolution_source
         response.session_info.parameters["ai_confidence"] = (
             gemini_confidence if gemini_confidence is not None
-            else (0.5 if (text_intent == "fallback" or not text_intent) else 1.0)
+            else (0.5 if resolved_intent == "fallback" else 1.0)
         )
 
     @staticmethod
@@ -395,83 +422,6 @@ class IntentService:
             "Mình chưa hiểu rõ yêu cầu của bạn. Bạn có thể hỏi về sản phẩm, giá, ưu đãi, giao hàng hoặc đơn hàng để mình hỗ trợ nhé. Nếu cần gặp người thật, bạn nhập /h.",
             {"search_status": "fallback"},
         )
-
-    async def _gemini_fallback_or_handover(self, request: DialogflowCXRequest, cost_context: dict[str, Any] | None) -> DialogflowCXResponse:
-        if not self.gemini_client or not self.gemini_client.is_enabled():
-            trace(
-                "INTENT_SERVICE_GEMINI_FALLBACK_SKIPPED",
-                {
-                    "reason": "gemini_disabled_or_missing",
-                    "text": request.text,
-                },
-            )
-            return await self.fallback()
-
-        try:
-            trace(
-                "INTENT_SERVICE_GEMINI_FALLBACK_START",
-                {
-                    "text": request.text,
-                    "session_parameters": request_session_parameters(request),
-                },
-            )
-            resolution, usage = await self.gemini_client.generate_fallback_json_with_usage(
-                user_text=request.text,
-                session_parameters=request_session_parameters(request),
-            )
-            trace(
-                "INTENT_SERVICE_GEMINI_FALLBACK_RESULT",
-                {
-                    "resolution": resolution,
-                    "usage_metadata": usage,
-                },
-            )
-            await record_gemini_usage(
-                cost_context=cost_context,
-                operation="fallback_generation",
-                model=getattr(self.gemini_client, "model", "gemini"),
-                intent="fallback",
-                usage_metadata=usage,
-            )
-        except GeminiAPIError as exc:
-            trace(
-                "INTENT_SERVICE_GEMINI_FALLBACK_ERROR",
-                {
-                    "text": request.text,
-                    "error_type": exc.__class__.__name__,
-                    "error": str(exc),
-                },
-            )
-            return await self.fallback()
-
-        action = resolution.get("action")
-        confidence = parse_confidence(resolution.get("confidence"))
-        trace(
-            "INTENT_SERVICE_GEMINI_FALLBACK_DECISION",
-            {
-                "action": action,
-                "confidence": confidence,
-                "resolution": resolution,
-            },
-        )
-
-        if action == "answer" and resolution.get("answer"):
-            return text_response(
-                resolution["answer"],
-                {"search_status": "gemini_answer", "ai_confidence": confidence}
-            )
-        elif action == "clarify" and resolution.get("clarifying_question"):
-            return text_response(
-                resolution["clarifying_question"],
-                {"search_status": "gemini_clarify", "ai_confidence": confidence}
-            )
-        elif action == "handover":
-            return await self.fallback()
-        else:
-            return text_response(
-                "Mình chưa hiểu rõ ý bạn. Bạn có thể hỏi về sản phẩm, giá, ưu đãi, giao hàng hoặc đơn hàng để mình hỗ trợ nhé.",
-                {"search_status": "fallback"}
-            )
 
     async def shipping_policy(self) -> DialogflowCXResponse:
         return text_response(
@@ -543,7 +493,6 @@ class IntentService:
 
         text_message = first_text_message(response)
         final_text = text_message or ""
-        should_rewrite = self._should_rewrite_with_gemini(lex_intent_name, intent, response)
         trace(
             "INTENT_SERVICE_FINALIZE_DECISION",
             {
@@ -553,133 +502,11 @@ class IntentService:
                 "gemini_present": bool(self.gemini_client),
                 "gemini_enabled": bool(self.gemini_client and self.gemini_client.is_enabled()),
                 "has_text_message": bool(text_message),
-                "should_rewrite_with_gemini": should_rewrite,
-                "final_text_before_rewrite": final_text,
                 "session_parameters": response.session_info.parameters,
             },
         )
-
-        if (
-            not self.gemini_client
-            or not self.gemini_client.is_enabled()
-            or not text_message
-            or not should_rewrite
-        ):
-            response.session_info.parameters["bot_final_message"] = final_text
-            return response
-
-        try:
-            if hasattr(self.gemini_client, "rewrite_customer_reply_with_usage"):
-                result = await self.gemini_client.rewrite_customer_reply_with_usage(
-                    intent=intent,
-                    user_text=request.text,
-                    draft_reply=final_text,
-                    session_parameters=response.session_info.parameters if response.session_info else None,
-                    payload=first_payload(response),
-                )
-                rewritten = result.text
-                await record_gemini_usage(
-                    cost_context=cost_context,
-                    operation="rewrite",
-                    model=getattr(self.gemini_client, "model", "gemini"),
-                    intent=response.session_info.parameters.get("resolved_intent") or intent,
-                    usage_metadata=result.usage_metadata,
-                )
-            else:
-                rewritten = await self.gemini_client.rewrite_customer_reply(
-                    intent=intent,
-                    user_text=request.text,
-                    draft_reply=final_text,
-                    session_parameters=response.session_info.parameters if response.session_info else None,
-                    payload=first_payload(response),
-                )
-            final_text = rewritten
-            trace(
-                "INTENT_SERVICE_GEMINI_REWRITE_RESULT",
-                {
-                    "session_id": getattr(request, "session_id", None),
-                    "text_before": text_message,
-                    "text_after": final_text,
-                },
-            )
-        except GeminiAPIError as exc:
-            trace(
-                "INTENT_SERVICE_GEMINI_REWRITE_ERROR",
-                {
-                    "session_id": getattr(request, "session_id", None),
-                    "text_before": text_message,
-                    "error_type": exc.__class__.__name__,
-                    "error": str(exc),
-                },
-            )
-
-        set_first_text_message(response, final_text)
-        
-        # Bypass Lex V2 message stripping by storing the final message in session attributes
-        # We must ALWAYS overwrite it, otherwise Lex V2 retains the old message from the previous turn!
         response.session_info.parameters["bot_final_message"] = final_text
-        
         return response
-
-    @staticmethod
-    def _should_rewrite_with_gemini(
-        lex_intent: str | None,
-        resolved_intent: str | None,
-        response: DialogflowCXResponse,
-    ) -> bool:
-        intent = normalize_resolved_intent(resolved_intent) or normalize_resolved_intent(lex_intent) or ""
-        lex_intent_text = str(lex_intent or "").lower()
-        search_status = str(response.session_info.parameters.get("search_status") or "").lower()
-
-        deterministic_intents = {
-            "greeting",
-            "smalltalk_affirmation",
-            "smalltalk_negation",
-            "smalltalk_compliment",
-            "product_search",
-            "product_price",
-            "product_recommendation",
-            "bonus",
-            "inventory",
-            "product_compare",
-            "warranty_policy",
-            "shipping_policy",
-            "order_tracking",
-            "order_list",
-            "top_expensive",
-            "top_cheap",
-            "best_sellers",
-            "human_handover",
-        }
-        if intent in deterministic_intents:
-            return False
-        deterministic_lex_tokens = {
-            "greeting",
-            "smalltalk",
-            "productsearch",
-            "product_search",
-            "productprice",
-            "product_price",
-            "productrecommendation",
-            "product_recommendation",
-            "bonus",
-            "promotion",
-            "discount",
-            "inventory",
-            "stock",
-            "productcompare",
-            "product_compare",
-            "warranty",
-            "shipping",
-            "order",
-            "handover",
-            "handoff",
-        }
-        if any(token in lex_intent_text for token in deterministic_lex_tokens):
-            return False
-        if search_status in {"gemini_answer", "gemini_clarify", "fallback", "fallback_handover"}:
-            return False
-        return "fallback" in lex_intent_text or intent == "fallback"
 
     async def _resolve_intent_with_gemini(
         self,
@@ -1587,22 +1414,6 @@ def first_text_message(response: DialogflowCXResponse) -> str | None:
     if not message.text or not message.text.text:
         return None
     return message.text.text[0]
-
-
-def set_first_text_message(response: DialogflowCXResponse, value: str) -> None:
-    if not response.fulfillment_response.messages:
-        return
-    message = response.fulfillment_response.messages[0]
-    if not message.text or not message.text.text:
-        return
-    message.text.text[0] = value
-
-
-def first_payload(response: DialogflowCXResponse) -> dict[str, Any] | None:
-    for message in response.fulfillment_response.messages:
-        if message.payload:
-            return message.payload
-    return None
 
 
 def merge_session_parameters(request: DialogflowCXRequest, response: DialogflowCXResponse) -> None:
