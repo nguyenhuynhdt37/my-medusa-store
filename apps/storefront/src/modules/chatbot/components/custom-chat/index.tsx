@@ -74,6 +74,36 @@ const chatDebugTable = (rows: unknown[]) => {
   }
 }
 
+const getChatWebSocketUrl = (conversationId: string) => {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_CHAT_WS_URL?.trim()
+
+  if (!configuredBaseUrl || typeof window === "undefined") {
+    return null
+  }
+
+  try {
+    const url = new URL(
+      `${configuredBaseUrl.replace(/\/$/, "")}/ws/chat/${conversationId}`
+    )
+
+    if (!["ws:", "wss:"].includes(url.protocol)) {
+      throw new Error(`Unsupported WebSocket protocol: ${url.protocol}`)
+    }
+
+    if (window.location.protocol === "https:" && url.protocol !== "wss:") {
+      console.warn(
+        "[WS_DISABLED] NEXT_PUBLIC_CHAT_WS_URL must use wss:// on an HTTPS storefront."
+      )
+      return null
+    }
+
+    return url.toString()
+  } catch (error) {
+    console.error("[WS_CONFIG_ERROR] Invalid NEXT_PUBLIC_CHAT_WS_URL", error)
+    return null
+  }
+}
+
 const createClientId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID()
@@ -706,11 +736,22 @@ const CustomChat = () => {
         return
       }
 
+      const wsUrl = getChatWebSocketUrl(conversationId)
+      if (!wsUrl) {
+        setWsStatus("disconnected")
+        return
+      }
+
       setWsStatus("connecting")
       chatDebug("[WS_CONNECTING] Attempting to connect...")
-      const wsBaseUrl = process.env.NEXT_PUBLIC_CHAT_WS_URL || "ws://localhost:9001"
-      const wsUrl = `${wsBaseUrl.replace(/\/$/, "")}/ws/chat/${conversationId}`
-      const ws = new WebSocket(wsUrl)
+      let ws: WebSocket
+      try {
+        ws = new WebSocket(wsUrl)
+      } catch (error) {
+        console.error("[WS_CONNECTION_ERROR] Unable to create WebSocket", error)
+        setWsStatus("disconnected")
+        return
+      }
       wsRef.current = ws
 
       ws.onopen = () => {

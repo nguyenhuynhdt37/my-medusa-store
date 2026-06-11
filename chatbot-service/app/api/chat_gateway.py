@@ -46,6 +46,8 @@ def _canonical_messages_for_intent(intent_name: str | None, messages: list) -> l
     if normalized_intent == "smalltalk_compliment": return [{"text": SMALLTALK_COMPLIMENT_MESSAGE, "payload": None}]
     if normalized_intent == "smalltalk_affirmation": return [{"text": SMALLTALK_AFFIRMATION_MESSAGE, "payload": None}]
     if normalized_intent == "smalltalk_negation": return [{"text": SMALLTALK_NEGATION_MESSAGE, "payload": None}]
+    if normalized_intent in {"fallback", "fallbackintent"}:
+        return [{"text": "Mình chưa hiểu rõ yêu cầu của bạn. Bạn có thể hỏi về sản phẩm, giá, ưu đãi, giao hàng hoặc đơn hàng để mình hỗ trợ nhé.", "payload": None}]
     return messages
 
 HANDOVER_MESSAGE = (
@@ -123,30 +125,45 @@ async def process_ai_request(
             },
         }
 
+    local_intent = infer_intent_from_text(text)
+
     session_id = (
         f"fb_{external_user_id}"
         if channel == "MESSENGER" and external_user_id
         else body.conversation_id
     )
-    response = await lex_client.recognize_text(
-        session_id=session_id,
-        text=text,
-        request_attributes={
-            **({"Authorization": authorization} if authorization else {}),
-            "conversation_id": body.conversation_id,
-            "customer_id": str(body.customer_context.get("customer_id") or ""),
-            "guest_id": str(body.customer_context.get("guest_id") or ""),
-            "external_user_id": str(external_user_id or ""),
-            "channel": channel,
-            "session_id": session_id,
-        },
-    )
 
-    local_intent = infer_intent_from_text(text)
+    if local_intent in _SMALLTALK_INTENTS:
+        response = {
+            "sessionState": {
+                "intent": {"name": local_intent},
+                "sessionAttributes": {
+                    "resolved_intent": local_intent,
+                    "ai_confidence": "1.0",
+                },
+            },
+            "messages": [],
+        }
+    else:
+        response = await lex_client.recognize_text(
+            session_id=session_id,
+            text=text,
+            request_attributes={
+                **({"Authorization": authorization} if authorization else {}),
+                "conversation_id": body.conversation_id,
+                "customer_id": str(body.customer_context.get("customer_id") or ""),
+                "guest_id": str(body.customer_context.get("guest_id") or ""),
+                "external_user_id": str(external_user_id or ""),
+                "channel": channel,
+                "session_id": session_id,
+            },
+        )
+
     is_fallback = _is_fallback_response(response)
     has_gemini = gemini_client is not None and gemini_client.is_enabled()
+    has_local_specific_intent = local_intent and local_intent not in {"fallback", "FallbackIntent"}
     
-    if is_fallback and has_gemini and local_intent not in _SMALLTALK_INTENTS:
+    if is_fallback and has_gemini and not has_local_specific_intent and local_intent not in _SMALLTALK_INTENTS:
         normalized_text = None
         try:
             lex_session_attributes = response.get("sessionState", {}).get("sessionAttributes", {})
@@ -161,34 +178,40 @@ async def process_ai_request(
                     text=normalized_text,
                     request_attributes=response.get("requestAttributes") or {},
                 )
+                is_fallback = _is_fallback_response(response)
         except Exception as e:
-            print(f"[GATEWAY] Gemini rewrite error: {e}", flush=True)
+            print(f"[GATEWAY] Gemini query rewrite error: {e}", flush=True)
 
-        # --- LOCAL FALLBACK EXECUTION FIX ---
+    # --- LOCAL FALLBACK EXECUTION FIX ---
+    # Running outside the Gemini block so that local intents run even if Gemini is disabled or rate-limited.
+    if is_fallback and has_local_specific_intent:
         try:
-            if _is_fallback_response(response) and local_intent and local_intent not in {"fallback", "FallbackIntent"}:
-                from app.clients.medusa_client import get_medusa_client
-                from app.services.intent_service import IntentService
-                from app.schemas.lexv2 import LexV2Request
-                intent_service = IntentService(get_medusa_client(), gemini_client)
-                mock_request = LexV2Request(
-                    sessionId=session_id,
-                    inputTranscript=normalized_text or text,
-                    requestAttributes=response.get("requestAttributes") or {},
-                    sessionState={
-                        "intent": {"name": "FallbackIntent", "state": "Fulfilled"},
-                        "sessionAttributes": lex_session_attributes if 'lex_session_attributes' in locals() else response.get("sessionState", {}).get("sessionAttributes", {}),
-                    },
-                )
-                dialogflow_response = await intent_service.handle(mock_request, authorization_header=authorization)
-                response = dialogflow_response.model_dump(by_alias=True)
-                
+            from app.clients.medusa_client import get_medusa_client
+            from app.services.intent_service import IntentService
+            from app.schemas.lexv2 import LexV2Request
+            lex_session_attributes = response.get("sessionState", {}).get("sessionAttributes", {})
+            intent_service = IntentService(get_medusa_client(), gemini_client)
+            mock_request = LexV2Request(
+                sessionId=session_id,
+                inputTranscript=text,
+                requestAttributes=response.get("requestAttributes") or {},
+                sessionState={
+                    "intent": {"name": "FallbackIntent", "state": "Failed"},
+                    "sessionAttributes": lex_session_attributes,
+                },
+            )
+            dialogflow_response = await intent_service.handle(mock_request, authorization_header=authorization)
+            response = dialogflow_response.model_dump(by_alias=True)
+            is_fallback = _is_fallback_response(response)
         except Exception as e:
             print(f"[GATEWAY] Local fallback execution error: {e}", flush=True)
 
-    if _is_fallback_response(response) and local_intent in _SMALLTALK_INTENTS:
+    if is_fallback and local_intent in _SMALLTALK_INTENTS:
         response["sessionState"] = response.get("sessionState") or {}
         response["sessionState"]["intent"] = {"name": local_intent}
+        if "sessionAttributes" not in response["sessionState"]:
+            response["sessionState"]["sessionAttributes"] = {}
+        response["sessionState"]["sessionAttributes"]["resolved_intent"] = local_intent
     session_state = response.get("sessionState") or {}
     session_attributes = session_state.get("sessionAttributes") or {}
     intent_name = (

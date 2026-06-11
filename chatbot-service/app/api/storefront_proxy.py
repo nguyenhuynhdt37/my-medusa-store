@@ -20,7 +20,10 @@ HOP_BY_HOP_HEADERS = {
 }
 
 
-@router.api_route("/{path:path}", methods=["GET", "HEAD"])
+@router.api_route(
+    "/{path:path}",
+    methods=["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+)
 async def proxy_storefront(path: str, request: Request) -> Response:
     target = f"{settings.storefront_internal_url.rstrip('/')}/{path}"
     if request.url.query:
@@ -38,6 +41,7 @@ async def proxy_storefront(path: str, request: Request) -> Response:
                 request.method,
                 target,
                 headers=headers,
+                content=await request.body(),
             )
     except httpx.RequestError as exc:
         raise HTTPException(
