@@ -119,8 +119,8 @@ services:
       STOREFRONT_BASE_URL: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:?Set PUBLIC_HOST in .env.prod}:8000}
       MEDUSA_REGION_COUNTRY_CODE: vn
       STOREFRONT_COUNTRY_CODE: vn
-    expose:
-      - "8080"
+    ports:
+      - "127.0.0.1:8080:8080"
     restart: always
 
 volumes:
