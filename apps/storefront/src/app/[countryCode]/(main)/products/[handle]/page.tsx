@@ -1,5 +1,7 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
+
+import { rethrowNextInternalError } from "@lib/util/next-errors"
 import { listProducts } from "@lib/data/products"
 import { getRegion, listRegions } from "@lib/data/regions"
 import ProductTemplate from "@modules/products/templates"
@@ -72,19 +74,31 @@ function getImagesForVariant(
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params
   const { handle } = params
-  const region = await getRegion(params.countryCode)
 
-  if (!region) {
-    notFound()
+  let region = null
+  let product = null
+
+  try {
+    region = await getRegion(params.countryCode)
+    if (region) {
+      product = await listProducts({
+        countryCode: params.countryCode,
+        queryParams: { handle },
+      }).then(({ response }) => response.products[0])
+    }
+  } catch (error) {
+    rethrowNextInternalError(error)
+    console.error(
+      `[Product generateMetadata] Error fetching data for product "${handle}":`,
+      error
+    )
   }
 
-  const product = await listProducts({
-    countryCode: params.countryCode,
-    queryParams: { handle },
-  }).then(({ response }) => response.products[0])
-
   if (!product) {
-    notFound()
+    return {
+      title: "Product Not Found | Medusa Store",
+      description: "Product details are currently unavailable.",
+    }
   }
 
   return {
@@ -100,25 +114,44 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
 export default async function ProductPage(props: Props) {
   const params = await props.params
-  const region = await getRegion(params.countryCode)
   const searchParams = await props.searchParams
 
   const selectedVariantId = searchParams.v_id
+
+  let region = null
+  try {
+    region = await getRegion(params.countryCode)
+  } catch (error) {
+    rethrowNextInternalError(error)
+    console.error(
+      `[ProductPage] Error fetching region for country code "${params.countryCode}":`,
+      error
+    )
+  }
 
   if (!region) {
     notFound()
   }
 
-  const pricedProduct = await listProducts({
-    countryCode: params.countryCode,
-    queryParams: { handle: params.handle },
-  }).then(({ response }) => response.products[0])
-
-  const images = getImagesForVariant(pricedProduct, selectedVariantId)
+  let pricedProduct = null
+  try {
+    pricedProduct = await listProducts({
+      countryCode: params.countryCode,
+      queryParams: { handle: params.handle },
+    }).then(({ response }) => response.products[0])
+  } catch (error) {
+    rethrowNextInternalError(error)
+    console.error(
+      `[ProductPage] Error fetching product with handle "${params.handle}":`,
+      error
+    )
+  }
 
   if (!pricedProduct) {
     notFound()
   }
+
+  const images = getImagesForVariant(pricedProduct, selectedVariantId)
 
   return (
     <ProductTemplate

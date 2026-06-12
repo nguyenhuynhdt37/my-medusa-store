@@ -35,5 +35,17 @@ sdk.client.fetch = async <T>(
     ...init,
     headers: newHeaders,
   }
-  return originalFetch(input, init)
+  
+  try {
+    return await originalFetch(input, init)
+  } catch (error: any) {
+    if (typeof window === "undefined") {
+      console.error(
+        `[Medusa SDK Fetch Error] Failed to fetch "${input}" from baseUrl "${MEDUSA_BACKEND_URL}":`,
+        error
+      )
+    }
+    throw error
+  }
 }
+

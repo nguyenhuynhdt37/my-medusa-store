@@ -1,6 +1,8 @@
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
+import { rethrowNextInternalError } from "@lib/util/next-errors"
+
 import { getCollectionByHandle, listCollections } from "@lib/data/collections"
 import { listRegions } from "@lib/data/regions"
 import { StoreCollection, StoreRegion } from "@medusajs/types"
@@ -60,10 +62,23 @@ export async function generateStaticParams() {
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params
-  const collection = await getCollectionByHandle(params.handle)
+  let collection = null
+
+  try {
+    collection = await getCollectionByHandle(params.handle)
+  } catch (error) {
+    rethrowNextInternalError(error)
+    console.error(
+      `[Collection generateMetadata] Error fetching collection "${params.handle}":`,
+      error
+    )
+  }
 
   if (!collection) {
-    notFound()
+    return {
+      title: "Collection Not Found | Medusa Store",
+      description: "Collection details are currently unavailable.",
+    }
   }
 
   const metadata = {
@@ -79,9 +94,16 @@ export default async function CollectionPage(props: Props) {
   const params = await props.params
   const { sortBy, page } = searchParams
 
-  const collection = await getCollectionByHandle(params.handle).then(
-    (collection) => collection
-  )
+  let collection = null
+  try {
+    collection = await getCollectionByHandle(params.handle)
+  } catch (error) {
+    rethrowNextInternalError(error)
+    console.error(
+      `[CollectionPage] Error fetching collection with handle "${params.handle}":`,
+      error
+    )
+  }
 
   if (!collection) {
     notFound()

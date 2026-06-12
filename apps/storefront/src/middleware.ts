@@ -25,19 +25,33 @@ async function getRegionMap(cacheId: string) {
     regionMapUpdated < Date.now() - 3600 * 1000
   ) {
     // Fetch regions from Medusa. We can't use the JS client here because middleware is running on Edge and the client needs a Node environment.
-    const response = await fetch(`${BACKEND_URL}/store/regions`, {
-      method: "GET",
-      headers: {
-        "x-publishable-api-key": PUBLISHABLE_API_KEY!,
-      },
-      next: {
-        revalidate: 3600,
-        tags: [`regions-${cacheId}`],
-      },
-      cache: "force-cache",
-    })
+    let response;
+    try {
+      response = await fetch(`${BACKEND_URL}/store/regions`, {
+        method: "GET",
+        headers: {
+          "x-publishable-api-key": PUBLISHABLE_API_KEY!,
+        },
+        next: {
+          revalidate: 3600,
+          tags: [`regions-${cacheId}`],
+        },
+        cache: "force-cache",
+      })
+    } catch (fetchError: any) {
+      console.error(
+        `[Middleware Fetch Error] Network/DNS request failed for "${BACKEND_URL}/store/regions":`,
+        fetchError
+      )
+      throw fetchError
+    }
 
     if (!response.ok) {
+      const responseText = await response.text().catch(() => "N/A")
+      console.error(
+        `[Middleware Fetch Error] Backend returned status ${response.status} for "${BACKEND_URL}/store/regions". Response:`,
+        responseText
+      )
       throw new Error(`Backend returned ${response.status}`)
     }
 
