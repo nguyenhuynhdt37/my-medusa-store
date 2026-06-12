@@ -1,0 +1,25 @@
+aws_region        = "ap-southeast-1"
+project_name      = "ecomoi-chatbot"
+environment       = "production"
+instance_type     = "t3.medium"
+root_volume_size  = 20
+storefront_domain = "store.example.com"
+api_domain        = "api.example.com"
+chatbot_domain    = "chatbot.example.com"
+ssh_allowed_cidr  = "203.0.113.10/32"
+ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAEXAMPLE replace-with-your-public-key"
+
+# Optional. Leave null unless EC2 must download immutable deployment artifacts.
+deployment_s3_bucket_arn = null
+
+# Optional Amazon Lex V2 runtime access. Set both or leave both null.
+lex_bot_id       = null
+lex_bot_alias_id = null
+
+# Enable only after testing terraform destroy and defining a recovery procedure.
+enable_termination_protection = false
+
+additional_tags = {
+  Owner      = "platform-team"
+  CostCenter = "student-project"
+}

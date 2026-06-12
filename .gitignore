@@ -49,6 +49,17 @@ yarn-error.log*
 **/.env.test.local
 **/.env.production.local
 
+# Terraform local state and plans
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/tfplan
+**/terraform.tfvars
+**/*.auto.tfvars
+**/.terraformrc
+**/terraform.rc
+
 # Turbo
 .turbo
 
