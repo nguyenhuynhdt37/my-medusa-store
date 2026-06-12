@@ -9,7 +9,11 @@ RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt
 FROM base AS builder
 WORKDIR /app
 ARG VITE_CHAT_WS_URL
+ARG NEXT_PUBLIC_MEDUSA_BACKEND_URL
+ARG NEXT_PUBLIC_BASE_URL
 ENV VITE_CHAT_WS_URL=${VITE_CHAT_WS_URL}
+ENV NEXT_PUBLIC_MEDUSA_BACKEND_URL=${NEXT_PUBLIC_MEDUSA_BACKEND_URL}
+ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
 # Copy the entire monorepo
 COPY . .
 RUN pnpm install --frozen-lockfile

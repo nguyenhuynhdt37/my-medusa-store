@@ -33,7 +33,7 @@ Lưu lượng dự kiến: 10,000 phiên chat/tháng (Mỗi phiên trung bình 5
 Tổng chi phí ước tính để vận hành trơn tru trong tháng đầu tiên: **~$115.50 / tháng**.
 
 ### Chiến lược Auto-Scaling & Tối ưu hóa (Optimization Strategy)
-Hệ thống được cấu hình file `docker-compose.prod.yml` tích hợp **Docker Swarm / Compose V2** để có khả năng:
+Hệ thống sử dụng file `docker-compose.yml` duy nhất với **Docker Compose V2** để vận hành các service:
 1. **Replicas & Load Balancing**: Dịch vụ `storefront` và `chatbot-service` được cấu hình chạy nhiều bản sao (`replicas: 2`), chịu tải gấp đôi so với dev.
 2. **Resource Limits**: Giới hạn CPU (`cpus: '0.5'`) và RAM (`memory: 512M`) cho mỗi container tránh tình trạng OOM (Out Of Memory) sập chéo.
 3. **Log Rotation**: Cấu hình `max-size: 10m` giúp log không bao giờ phình to làm đầy ổ cứng.

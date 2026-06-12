@@ -10,7 +10,6 @@ Tai lieu nay dung cho cac ban trong team can chay du moi truong Medusa Backend, 
 - Python 3.10+ neu chay `chatbot-service` thu cong
 - File credential neu dung Dialogflow/Google: `google-credentials.json`
 - API key neu dung Gemini: `GEMINI_API_KEY`
-- Ngrok authtoken neu can public webhook: `NGROK_AUTHTOKEN`
 
 Kiem tra nhanh:
 
@@ -27,15 +26,14 @@ python3 --version
 |---|---|
 | Storefront | http://localhost:8000 |
 | Medusa Backend/Admin | http://localhost:9000 |
-| Chatbot/WebSocket service | http://localhost:8080 |
-| Ngrok dashboard | http://localhost:4040 |
-| Postgres | localhost:5432 |
+| Chatbot service | http://localhost:8080 |
+| Realtime WebSocket | ws://localhost:9001 |
 
 Live Chat dang dung WebSocket truc tiep o:
 
 ```txt
-ws://localhost:8080/ws/chat/:conversationId
-ws://localhost:8080/ws/chat/admin
+ws://localhost:9001/ws/chat/:conversationId
+ws://localhost:9001/ws/chat/admin
 ```
 
 ## 3. Chay nhanh bang Docker Compose
@@ -44,16 +42,21 @@ Day la cach nen dung cho team vi da gom Postgres, Redis, Backend, Storefront, Ch
 
 ### 3.1 Tao file `.env`
 
-Tu root repo:
-
-```bash
-cp .env.example .env
-```
-
-Cap nhat cac bien can thiet:
+Cap nhat file `.env` duy nhat tai root repo voi cac bien can thiet:
 
 ```env
-NGROK_AUTHTOKEN=your_ngrok_authtoken
+NEXT_PUBLIC_BASE_URL=https://store.itup.id.vn
+NEXT_PUBLIC_MEDUSA_BACKEND_URL=https://admin.itup.id.vn
+NEXT_PUBLIC_CHAT_WS_URL=wss://admin.itup.id.vn
+VITE_CHAT_WS_URL=wss://admin.itup.id.vn
+MEDUSA_BACKEND_URL=http://backend:9000
+MEDUSA_INTERNAL_URL=http://backend:9000
+MEDUSA_BASE_URL=http://backend:9000
+STOREFRONT_INTERNAL_URL=http://storefront:8000
+STOREFRONT_BASE_URL=https://store.itup.id.vn
+CHATBOT_SERVICE_URL=http://chatbot-service:8080/webhook
+CHAT_REALTIME_URL=http://realtime:9001
+CHAT_REALTIME_PORT=9001
 GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-2.5-flash
 GEMINI_ENABLED=true
@@ -70,7 +73,7 @@ Khong commit file credential len git.
 ### 3.2 Start tat ca service
 
 ```bash
-docker compose up --build
+make dev
 ```
 
 Lan dau se hoi lau vi container backend/storefront cai dependencies va migrate DB.
@@ -81,16 +84,10 @@ Lan dau se hoi lau vi container backend/storefront cai dependencies va migrate D
 - Admin: http://localhost:9000/app
 - Chatbot service health/API: http://localhost:8080
 
-Neu can xem tunnel ngrok:
-
-```bash
-open http://localhost:4040
-```
-
 ### 3.4 Stop service
 
 ```bash
-docker compose down
+make dev-down
 ```
 
 Neu muon xoa sach volume DB/cache:
