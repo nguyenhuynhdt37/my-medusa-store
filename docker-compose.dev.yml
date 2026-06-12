@@ -1,0 +1,95 @@
+services:
+  backend:
+    image: my-medusa-store-backend-dev
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: base
+      args:
+        VITE_CHAT_WS_URL: ${DEV_VITE_CHAT_WS_URL:?Set DEV_VITE_CHAT_WS_URL in .env}
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      ENVIRONMENT: development
+      VITE_CHAT_WS_URL: ${DEV_VITE_CHAT_WS_URL:?Set DEV_VITE_CHAT_WS_URL in .env}
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${DEV_NEXT_PUBLIC_MEDUSA_BACKEND_URL:?Set DEV_NEXT_PUBLIC_MEDUSA_BACKEND_URL in .env}
+      STORE_CORS: ${DEV_STORE_CORS:?Set DEV_STORE_CORS in .env}
+      ADMIN_CORS: ${DEV_ADMIN_CORS:?Set DEV_ADMIN_CORS in .env}
+      AUTH_CORS: ${DEV_AUTH_CORS:?Set DEV_AUTH_CORS in .env}
+      COOKIE_SECURE: "false"
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      MEDUSA_ADMIN_HMR_PORT: ${DEV_MEDUSA_ADMIN_HMR_PORT:?Set DEV_MEDUSA_ADMIN_HMR_PORT in .env}
+      PNPM_HOME: /pnpm
+    volumes:
+      - .:/app
+      - backend_root_node_modules:/app/node_modules
+      - backend_node_modules:/app/apps/backend/node_modules
+      - backend_pnpm_store:/pnpm/store
+    ports:
+      - "127.0.0.1:${DEV_MEDUSA_ADMIN_HMR_PORT:?Set DEV_MEDUSA_ADMIN_HMR_PORT in .env}:${DEV_MEDUSA_ADMIN_HMR_PORT:?Set DEV_MEDUSA_ADMIN_HMR_PORT in .env}"
+    command: >
+      sh -c "corepack enable &&
+             ln -sfn /app/apps /apps &&
+             pnpm config set store-dir /pnpm/store &&
+             pnpm install --frozen-lockfile &&
+             rm -rf apps/backend/node_modules/.vite apps/backend/.medusa/client apps/backend/.medusa/server apps/backend/.medusa/admin &&
+             pnpm --filter @dtc/backend exec medusa db:migrate --execute-safe-links &&
+             pnpm --filter @dtc/backend dev"
+
+  realtime:
+    image: my-medusa-store-backend-dev
+    working_dir: /app/apps/backend
+    environment:
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - backend_root_node_modules:/app/node_modules
+      - backend_node_modules:/app/apps/backend/node_modules
+      - backend_pnpm_store:/pnpm/store
+    command: ["pnpm", "exec", "ts-node", "src/realtime/server.ts"]
+
+  storefront:
+    image: my-medusa-store-storefront-dev
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: base
+    working_dir: /app
+    environment:
+      NODE_ENV: development
+      ENVIRONMENT: development
+      MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:?Set MEDUSA_BACKEND_URL in .env}
+      NEXT_PUBLIC_BASE_URL: ${DEV_NEXT_PUBLIC_BASE_URL:?Set DEV_NEXT_PUBLIC_BASE_URL in .env}
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${DEV_NEXT_PUBLIC_MEDUSA_BACKEND_URL:?Set DEV_NEXT_PUBLIC_MEDUSA_BACKEND_URL in .env}
+      NEXT_PUBLIC_CHAT_WS_URL: ${DEV_NEXT_PUBLIC_CHAT_WS_URL:?Set DEV_NEXT_PUBLIC_CHAT_WS_URL in .env}
+      COOKIE_SECURE: "false"
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      PNPM_HOME: /pnpm
+    volumes:
+      - .:/app
+      - storefront_root_node_modules:/app/node_modules
+      - storefront_node_modules:/app/apps/storefront/node_modules
+      - storefront_pnpm_store:/pnpm/store
+    command: >
+      sh -c "corepack enable &&
+             pnpm config set store-dir /pnpm/store &&
+             pnpm install --frozen-lockfile &&
+             pnpm --filter @dtc/storefront dev"
+
+  chatbot-service:
+    environment:
+      ENVIRONMENT: development
+      CHATBOT_TRACE_ENABLED: "true"
+    volumes:
+      - ./chatbot-service:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+
+volumes:
+  backend_root_node_modules:
+  backend_node_modules:
+  backend_pnpm_store:
+  storefront_root_node_modules:
+  storefront_node_modules:
+  storefront_pnpm_store:

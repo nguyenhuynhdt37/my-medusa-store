@@ -2,22 +2,17 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: ecomoi
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U postgres && (psql -U postgres -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='ecomoi'\" | grep -q 1 || createdb -U postgres ecomoi)",
-        ]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 5
+    restart: always
 
   redis:
     image: redis:7-alpine
@@ -25,16 +20,21 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 5
+    restart: always
 
   backend:
+    image: my-medusa-store-backend
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-      target: base
-    working_dir: /app
+      args:
+        VITE_CHAT_WS_URL: ${VITE_CHAT_WS_URL:?Set VITE_CHAT_WS_URL in .env}
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:?Set NEXT_PUBLIC_MEDUSA_BACKEND_URL in .env}
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:?Set NEXT_PUBLIC_BASE_URL in .env}
+    container_name: backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,24 +43,16 @@ services:
     env_file:
       - .env
     environment:
-      NODE_ENV: development
-      CHOKIDAR_USEPOLLING: "true"
-      WATCHPACK_POLLING: "true"
-      CHAT_REALTIME_URL: http://localhost:9001
-      CHAT_REALTIME_PORT: 9001
-      VITE_CHAT_WS_URL: ${PUBLIC_CHAT_WS_ORIGIN:-${PUBLIC_CHAT_WS_PROTOCOL:-ws}://${PUBLIC_HOST:-localhost}:9001}
-      MEDUSA_INTERNAL_URL: http://localhost:9000
-      CHATBOT_SERVICE_URL: http://chatbot-service:8080/webhook
-      MEDUSA_ADMIN_ONBOARDING_TYPE: nextjs
-      MEDUSA_ADMIN_ONBOARDING_NEXTJS_DIRECTORY: apps/storefront
-      STORE_CORS: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:8000}
-      ADMIN_CORS: http://localhost:5173,${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:9000}
-      AUTH_CORS: http://localhost:5173,${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:9000},${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:8000}
-      PNPM_HOME: /pnpm
+      MEDUSA_INTERNAL_URL: ${MEDUSA_INTERNAL_URL:?Set MEDUSA_INTERNAL_URL in .env}
+      CHATBOT_SERVICE_URL: ${CHATBOT_SERVICE_URL:?Set CHATBOT_SERVICE_URL in .env}
+      CHAT_REALTIME_URL: ${CHAT_REALTIME_URL:?Set CHAT_REALTIME_URL in .env}
+      CHAT_REALTIME_PORT: ${CHAT_REALTIME_PORT:?Set CHAT_REALTIME_PORT in .env}
+      VITE_CHAT_WS_URL: ${VITE_CHAT_WS_URL:?Set VITE_CHAT_WS_URL in .env}
+      STORE_CORS: ${STORE_CORS:?Set STORE_CORS in .env}
+      ADMIN_CORS: ${ADMIN_CORS:?Set ADMIN_CORS in .env}
+      AUTH_CORS: ${AUTH_CORS:?Set AUTH_CORS in .env}
     ports:
-      - "9000:9000"
-      - "7001:7001"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
     healthcheck:
       test:
         [
@@ -69,62 +61,61 @@ services:
           "-e",
           "fetch('http://localhost:9000/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))",
         ]
-      interval: 5s
+      interval: 10s
       timeout: 5s
-      retries: 60
-      start_period: 120s
-    volumes:
-      - .:/app
-      - backend_root_node_modules:/app/node_modules
-      - backend_node_modules:/app/apps/backend/node_modules
-      - backend_pnpm_store:/pnpm/store
-    command: >
-      sh -c "corepack enable &&
-             ln -sfn /app/apps /apps &&
-             pnpm config set store-dir /pnpm/store &&
-             pnpm install --frozen-lockfile &&
-             rm -rf apps/backend/node_modules/.vite apps/backend/.medusa/client apps/backend/.medusa/server apps/backend/.medusa/admin &&
-             pnpm --filter @dtc/backend exec medusa db:migrate --execute-safe-links &&
-             (pnpm --filter @dtc/backend exec ts-node src/realtime/server.ts &) &&
-             pnpm --filter @dtc/backend dev"
+      retries: 12
+      start_period: 30s
+    restart: always
 
-  storefront:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      target: base
-    working_dir: /app
+  realtime:
+    image: my-medusa-store-backend
+    container_name: realtime
     depends_on:
       backend:
         condition: service_healthy
     env_file:
       - .env
     environment:
-      NODE_ENV: development
-      CHOKIDAR_USEPOLLING: "true"
-      WATCHPACK_POLLING: "true"
-      MEDUSA_BACKEND_URL: http://backend:9000
-      NEXT_PUBLIC_BASE_URL: ${PUBLIC_STOREFRONT_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:8000}
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${PUBLIC_BACKEND_ORIGIN:-${PUBLIC_PROTOCOL:-http}://${PUBLIC_HOST:-localhost}:9000}
-      NEXT_PUBLIC_CHAT_WS_URL: ${PUBLIC_CHAT_WS_ORIGIN:-${PUBLIC_CHAT_WS_PROTOCOL:-ws}://${PUBLIC_HOST:-localhost}:9001}
-      NEXT_PUBLIC_STRIPE_KEY: ""
-      PNPM_HOME: /pnpm
+      CHAT_REALTIME_PORT: ${CHAT_REALTIME_PORT:?Set CHAT_REALTIME_PORT in .env}
+      MEDUSA_INTERNAL_URL: ${MEDUSA_INTERNAL_URL:?Set MEDUSA_INTERNAL_URL in .env}
+      NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env}
+    command: ["pnpm", "exec", "ts-node", "src/realtime/server.ts"]
     ports:
-      - "8000:8000"
-    volumes:
-      - .:/app
-      - storefront_root_node_modules:/app/node_modules
-      - storefront_node_modules:/app/apps/storefront/node_modules
-      - storefront_pnpm_store:/pnpm/store
-    command: >
-      sh -c "corepack enable &&
-             pnpm config set store-dir /pnpm/store &&
-             pnpm install --frozen-lockfile &&
-             pnpm --filter @dtc/storefront dev"
+      - "127.0.0.1:9001:9001"
+    restart: always
+
+  storefront:
+    build:
+      context: .
+      dockerfile: apps/storefront/Dockerfile
+      args:
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:?Set NEXT_PUBLIC_MEDUSA_BACKEND_URL in .env}
+        NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env}
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:?Set NEXT_PUBLIC_BASE_URL in .env}
+        NEXT_PUBLIC_CHAT_WS_URL: ${NEXT_PUBLIC_CHAT_WS_URL:?Set NEXT_PUBLIC_CHAT_WS_URL in .env}
+        NEXT_PUBLIC_DEFAULT_REGION: ${NEXT_PUBLIC_DEFAULT_REGION:-vn}
+    container_name: storefront
+    depends_on:
+      backend:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL:?Set MEDUSA_BACKEND_URL in .env}
+      STOREFRONT_INTERNAL_URL: ${STOREFRONT_INTERNAL_URL:?Set STOREFRONT_INTERNAL_URL in .env}
+      CHATBOT_SERVICE_URL: ${CHATBOT_SERVICE_URL:?Set CHATBOT_SERVICE_URL in .env}
+      NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:?Set NEXT_PUBLIC_MEDUSA_BACKEND_URL in .env}
+      NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:?Set NEXT_PUBLIC_BASE_URL in .env}
+      NEXT_PUBLIC_CHAT_WS_URL: ${NEXT_PUBLIC_CHAT_WS_URL:?Set NEXT_PUBLIC_CHAT_WS_URL in .env}
+    ports:
+      - "127.0.0.1:8000:8000"
+    restart: always
 
   chatbot-service:
     build:
       context: ./chatbot-service
+      dockerfile: Dockerfile
+    container_name: chatbot-service
     depends_on:
       backend:
         condition: service_healthy
@@ -133,48 +124,25 @@ services:
     env_file:
       - .env
     environment:
-      ENVIRONMENT: development
-      MEDUSA_BASE_URL: http://backend:9000
-      STOREFRONT_INTERNAL_URL: http://storefront:8000
-      MEDUSA_REGION_COUNTRY_CODE: vn
-      MEDUSA_TIMEOUT_SECONDS: 8
-      STOREFRONT_COUNTRY_CODE: vn
-      GEMINI_TIMEOUT_SECONDS: 10
-      CHATBOT_TRACE_ENABLED: "true"
-      CHATBOT_TRACE_MAX_STRING_CHARS: 4000
-      AI_COST_TRACKING_ENABLED: "true"
-      LEX_TEXT_REQUEST_PRICE_USD: 0.00075
-      GEMINI_INPUT_PRICE_PER_1M_TOKENS_USD: 0.30
-      GEMINI_OUTPUT_PRICE_PER_1M_TOKENS_USD: 2.50
-      LAMBDA_MEMORY_SIZE_MB: 128
-      LAMBDA_REQUEST_PRICE_PER_1M_USD: 0.20
-      LAMBDA_DURATION_PRICE_PER_GB_SECOND_USD: 0.0000166667
-      AI_USAGE_SNAPSHOT_JOB_ENABLED: "true"
-      AI_USAGE_SNAPSHOT_INTERVAL_SECONDS: 3600
+      MEDUSA_BASE_URL: ${MEDUSA_BASE_URL:?Set MEDUSA_BASE_URL in .env}
+      STOREFRONT_INTERNAL_URL: ${STOREFRONT_INTERNAL_URL:?Set STOREFRONT_INTERNAL_URL in .env}
+      STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:?Set STOREFRONT_BASE_URL in .env}
     ports:
-      - "8080:8080"
-    volumes:
-      - ./chatbot-service:/app
-
-  ngrok:
-    image: ngrok/ngrok:latest
-    depends_on:
-      chatbot-service:
-        condition: service_started
-    env_file:
-      - .env
-    volumes:
-      - ./.ngrok.docker.yml:/etc/ngrok.yml:ro
-    command: ["start", "app", "--config", "/etc/ngrok.yml"]
-    ports:
-      - "4040:4040"
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: always
 
 volumes:
   postgres_data:
   redis_data:
-  backend_root_node_modules:
-  backend_node_modules:
-  backend_pnpm_store:
-  storefront_root_node_modules:
-  storefront_node_modules:
-  storefront_pnpm_store:
