@@ -65,7 +65,7 @@ curl -4 ifconfig.me
 cat ~/.ssh/id_ed25519.pub
 ```
 
-Set `ssh_allowed_cidr` to the returned IP with `/32`, set only the public key in `ssh_public_key`, and configure `storefront_domain`, `api_domain`, and `chatbot_domain`. Never commit `terraform.tfvars`, private keys, AWS keys, Facebook tokens, Gemini keys, or application `.env` files.
+Set `ssh_allowed_cidr` to the returned IP with `/32`, set only the public key in `ssh_public_key`, and configure the three domains. Set `letsencrypt_email` to receive certificate notices; when omitted, Certbot registers without email. Never commit `terraform.tfvars`, private keys, AWS keys, Facebook tokens, Gemini keys, or application `.env` files.
 
 ## Validate and Deploy
 
@@ -86,20 +86,16 @@ terraform output -raw elastic_ip
 terraform output -raw ssm_start_session_command
 ```
 
-At Mat Bao, create three `A` records pointing to the same Terraform `elastic_ip`: the storefront, API, and chatbot hostnames. Wait for DNS propagation, then install TLS:
+At Mat Bao, create three `A` records pointing to the same Terraform `elastic_ip`: the storefront, API, and chatbot hostnames. The host retries Let's Encrypt issuance every ten minutes until DNS propagation completes, then enables HTTPS and HTTP-to-HTTPS redirects automatically.
 
 ```bash
 aws ssm start-session --target "$(terraform output -raw instance_id)" --region "$(terraform output -raw aws_region 2>/dev/null || echo ap-southeast-1)"
-sudo apt-get install -y certbot python3-certbot-nginx
-sudo certbot --nginx \
-  -d store.itup.id.vn \
-  -d api.itup.id.vn \
-  -d chatbot.itup.id.vn \
-  --redirect --agree-tos -m admin@example.com --no-eff-email
+sudo systemctl status ecomoi-chatbot-tls.timer
+sudo journalctl -u ecomoi-chatbot-tls.service --no-pager
 sudo certbot renew --dry-run
 ```
 
-Replace the example domain and email. Certbot is deliberately not run by `user_data`: certificate issuance fails if DNS has not propagated, and repeated instance replacement can hit Let's Encrypt rate limits.
+Replace `ecomoi-chatbot` with `project_name` when using a different project name. The retry timer stops doing work after successful issuance, while Certbot's renewal timer keeps the certificate current.
 
 Destroy when testing is complete:
 
@@ -209,7 +205,7 @@ Official references:
 - Nginx starts before the application and returns `502` until containers are deployed. This is expected during bootstrap.
 - User data runs only at first boot. Changing it does not reconfigure an existing instance unless replacement is enabled; use configuration management or immutable AMIs for ongoing changes.
 - Terraform local state is acceptable only for a single operator. Before team use, migrate state to encrypted/versioned S3 with DynamoDB/S3 locking and restricted IAM.
-- Terraform does not manage Mat Bao DNS or Let's Encrypt certificates in this baseline.
+- Terraform does not manage Mat Bao DNS. User data requests and renews a Let's Encrypt SAN certificate after all three DNS records resolve to the host.
 - The root volume is deleted on termination. Databases require tested off-instance backups before production traffic.
 - CloudWatch logs can contain request paths and IP addresses. Do not log tokens, authorization headers, message secrets, or customer PII.
 

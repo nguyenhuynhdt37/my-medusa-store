@@ -14,7 +14,7 @@ resource "aws_instance" "app" {
   vpc_security_group_ids      = [aws_security_group.app.id]
   iam_instance_profile        = aws_iam_instance_profile.ec2.name
   key_name                    = aws_key_pair.deployer.key_name
-  associate_public_ip_address = false
+  associate_public_ip_address = true
   disable_api_termination     = var.enable_termination_protection
   monitoring                  = false
 
@@ -23,6 +23,7 @@ resource "aws_instance" "app" {
     aws_region           = var.aws_region
     chatbot_domain       = var.chatbot_domain
     cloudwatch_log_group = aws_cloudwatch_log_group.host.name
+    letsencrypt_email    = var.letsencrypt_email == null ? "" : var.letsencrypt_email
     project_name         = var.project_name
     storefront_domain    = var.storefront_domain
   })

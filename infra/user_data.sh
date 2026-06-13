@@ -20,7 +20,7 @@ retry() {
 
 retry apt-get update
 retry apt-get upgrade -y
-retry apt-get install -y ca-certificates curl git gnupg jq nginx snapd unzip
+retry apt-get install -y ca-certificates certbot curl git gnupg jq nginx snapd unzip
 
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -48,6 +48,7 @@ fi
 
 mkdir -p /opt/${project_name}/app
 chown -R ubuntu:ubuntu /opt/${project_name}
+mkdir -p /var/www/letsencrypt
 
 cat >/etc/nginx/conf.d/websocket-map.conf <<'EOF'
 map $http_upgrade $connection_upgrade {
@@ -64,6 +65,10 @@ server {
   server_name ${storefront_domain};
 
   client_max_body_size 20m;
+
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/letsencrypt;
+  }
 
   location / {
     proxy_pass http://127.0.0.1:8000;
@@ -87,7 +92,11 @@ server {
 
   client_max_body_size 20m;
 
-  location /ws/ {
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/letsencrypt;
+  }
+
+  location /ws/chat/ {
     proxy_pass http://127.0.0.1:9001;
     proxy_http_version 1.1;
     proxy_set_header Host \$host;
@@ -123,6 +132,10 @@ server {
 
   client_max_body_size 20m;
 
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/letsencrypt;
+  }
+
   location / {
     proxy_pass http://127.0.0.1:8080;
     proxy_http_version 1.1;
@@ -142,6 +155,170 @@ EOF
 ln -sfn /etc/nginx/sites-available/${project_name}.conf /etc/nginx/sites-enabled/${project_name}.conf
 nginx -t
 systemctl reload nginx
+
+cat >/usr/local/sbin/configure-${project_name}-tls <<'EOF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+marker=/etc/nginx/.${project_name}-tls-configured
+[[ -f "$marker" ]] && exit 0
+
+certbot_contact_args=(--register-unsafely-without-email)
+if [[ -n '${letsencrypt_email}' ]]; then
+  certbot_contact_args=(--email '${letsencrypt_email}')
+fi
+
+certbot certonly \
+  --webroot \
+  --webroot-path /var/www/letsencrypt \
+  --non-interactive \
+  --agree-tos \
+  --keep-until-expiring \
+  "$${certbot_contact_args[@]}" \
+  --cert-name '${api_domain}' \
+  -d '${api_domain}' \
+  -d '${storefront_domain}' \
+  -d '${chatbot_domain}'
+
+cat >/etc/nginx/sites-available/${project_name}.conf <<'NGINX'
+server {
+  listen 443 ssl;
+  listen [::]:443 ssl;
+  server_name ${storefront_domain};
+
+  ssl_certificate /etc/letsencrypt/live/${api_domain}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${api_domain}/privkey.pem;
+  client_max_body_size 20m;
+
+  location / {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+  }
+}
+
+server {
+  listen 443 ssl;
+  listen [::]:443 ssl;
+  server_name ${api_domain};
+
+  ssl_certificate /etc/letsencrypt/live/${api_domain}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${api_domain}/privkey.pem;
+  client_max_body_size 20m;
+
+  location /ws/chat/ {
+    proxy_pass http://127.0.0.1:9001;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 86400s;
+    proxy_send_timeout 86400s;
+  }
+
+  location / {
+    proxy_pass http://127.0.0.1:9000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+  }
+}
+
+server {
+  listen 443 ssl;
+  listen [::]:443 ssl;
+  server_name ${chatbot_domain};
+
+  ssl_certificate /etc/letsencrypt/live/${api_domain}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${api_domain}/privkey.pem;
+  client_max_body_size 20m;
+
+  location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+  }
+}
+
+server {
+  listen 80;
+  listen [::]:80;
+  server_name ${storefront_domain} ${api_domain} ${chatbot_domain};
+
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/letsencrypt;
+  }
+
+  location / {
+    return 301 https://$host$request_uri;
+  }
+}
+NGINX
+
+nginx -t
+systemctl reload nginx
+mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+cat >/etc/letsencrypt/renewal-hooks/deploy/reload-nginx <<'HOOK'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+nginx -t
+systemctl reload nginx
+HOOK
+chmod 0755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
+touch "$marker"
+EOF
+chmod 0755 /usr/local/sbin/configure-${project_name}-tls
+
+cat >/etc/systemd/system/${project_name}-tls.service <<EOF
+[Unit]
+Description=Issue Let's Encrypt certificate and enable HTTPS for ${project_name}
+After=network-online.target nginx.service
+Wants=network-online.target
+ConditionPathExists=!/etc/nginx/.${project_name}-tls-configured
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/configure-${project_name}-tls
+EOF
+
+cat >/etc/systemd/system/${project_name}-tls.timer <<EOF
+[Unit]
+Description=Retry HTTPS configuration after DNS propagation
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=10min
+Unit=${project_name}-tls.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now ${project_name}-tls.timer
+systemctl enable --now certbot.timer || true
+systemctl start ${project_name}-tls.service || true
 
 CW_AGENT_DEB=/tmp/amazon-cloudwatch-agent.deb
 curl -fsSL "https://amazoncloudwatch-agent-${aws_region}.s3.${aws_region}.amazonaws.com/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb" -o "$CW_AGENT_DEB"

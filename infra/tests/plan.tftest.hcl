@@ -25,6 +25,7 @@ run "production_plan" {
     storefront_domain = "store.example.com"
     api_domain        = "api.example.com"
     chatbot_domain    = "chatbot.example.com"
+    letsencrypt_email = "ops@example.com"
     ssh_allowed_cidr  = "203.0.113.10/32"
     ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFAKEKEYFORSTATICPLANONLY000000000000000"
   }

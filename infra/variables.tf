@@ -109,6 +109,18 @@ variable "chatbot_domain" {
   }
 }
 
+variable "letsencrypt_email" {
+  description = "Email used for Let's Encrypt expiry and account notifications."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.letsencrypt_email == null || can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.letsencrypt_email))
+    error_message = "letsencrypt_email must be a valid email address."
+  }
+}
+
 variable "deployment_s3_bucket_arn" {
   description = "Optional existing S3 bucket ARN containing deployment artifacts. Null grants no S3 access."
   type        = string
