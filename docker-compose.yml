@@ -7,6 +7,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./medusa-pubic/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
@@ -25,7 +26,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  backend:
+  backend-migrate:
     image: my-medusa-store-backend
     build:
       context: .
@@ -34,7 +35,6 @@ services:
         VITE_CHAT_WS_URL: ${VITE_CHAT_WS_URL:?Set VITE_CHAT_WS_URL in .env}
         NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:?Set NEXT_PUBLIC_MEDUSA_BACKEND_URL in .env}
         NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:?Set NEXT_PUBLIC_BASE_URL in .env}
-    container_name: backend
     depends_on:
       postgres:
         condition: service_healthy
@@ -51,8 +51,35 @@ services:
       STORE_CORS: ${STORE_CORS:?Set STORE_CORS in .env}
       ADMIN_CORS: ${ADMIN_CORS:?Set ADMIN_CORS in .env}
       AUTH_CORS: ${AUTH_CORS:?Set AUTH_CORS in .env}
+    command: ["pnpm", "exec", "medusa", "db:migrate", "--execute-safe-links"]
+    restart: "no"
+
+  backend:
+    image: my-medusa-store-backend
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        VITE_CHAT_WS_URL: ${VITE_CHAT_WS_URL:?Set VITE_CHAT_WS_URL in .env}
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL:?Set NEXT_PUBLIC_MEDUSA_BACKEND_URL in .env}
+        NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:?Set NEXT_PUBLIC_BASE_URL in .env}
+    container_name: backend
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      MEDUSA_INTERNAL_URL: ${MEDUSA_INTERNAL_URL:?Set MEDUSA_INTERNAL_URL in .env}
+      CHATBOT_SERVICE_URL: ${CHATBOT_SERVICE_URL:?Set CHATBOT_SERVICE_URL in .env}
+      CHAT_REALTIME_URL: ${CHAT_REALTIME_URL:?Set CHAT_REALTIME_URL in .env}
+      CHAT_REALTIME_PORT: ${CHAT_REALTIME_PORT:?Set CHAT_REALTIME_PORT in .env}
+      VITE_CHAT_WS_URL: ${VITE_CHAT_WS_URL:?Set VITE_CHAT_WS_URL in .env}
+      STORE_CORS: ${STORE_CORS:?Set STORE_CORS in .env}
+      ADMIN_CORS: ${ADMIN_CORS:?Set ADMIN_CORS in .env}
+      AUTH_CORS: ${AUTH_CORS:?Set AUTH_CORS in .env}
     ports:
-      - "127.0.0.1:9000:9000"
+      - "9000:9000"
     healthcheck:
       test:
         [
@@ -81,7 +108,7 @@ services:
       NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY:?Set NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY in .env}
     command: ["pnpm", "exec", "ts-node", "src/realtime/server.ts"]
     ports:
-      - "127.0.0.1:9001:9001"
+      - "9001:9001"
     restart: unless-stopped
 
   storefront:
@@ -108,7 +135,7 @@ services:
       NEXT_PUBLIC_BASE_URL: ${NEXT_PUBLIC_BASE_URL:?Set NEXT_PUBLIC_BASE_URL in .env}
       NEXT_PUBLIC_CHAT_WS_URL: ${NEXT_PUBLIC_CHAT_WS_URL:?Set NEXT_PUBLIC_CHAT_WS_URL in .env}
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
     restart: unless-stopped
 
   chatbot-service:
@@ -128,7 +155,7 @@ services:
       STOREFRONT_INTERNAL_URL: ${STOREFRONT_INTERNAL_URL:?Set STOREFRONT_INTERNAL_URL in .env}
       STOREFRONT_BASE_URL: ${STOREFRONT_BASE_URL:?Set STOREFRONT_BASE_URL in .env}
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     healthcheck:
       test:
         [

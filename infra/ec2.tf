@@ -57,11 +57,48 @@ resource "aws_instance" "app" {
     aws_iam_role_policy.cloudwatch_logs,
     aws_iam_role_policy_attachment.ssm,
     aws_route_table_association.public,
+    null_resource.prepare_env,
   ]
 
   tags = {
     Name = "${local.name_prefix}-app"
     Role = "application"
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/../medusa-pubic/docker-compose.yml"
+    destination = "/home/ubuntu/docker-compose.yml"
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(pathexpand("~/.ssh/id_ed25519"))
+      host        = self.public_ip
+    }
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/../medusa-pubic/init.sql"
+    destination = "/home/ubuntu/init.sql"
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(pathexpand("~/.ssh/id_ed25519"))
+      host        = self.public_ip
+    }
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/../.env.deploy"
+    destination = "/home/ubuntu/.env"
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(pathexpand("~/.ssh/id_ed25519"))
+      host        = self.public_ip
+    }
   }
 }
 
@@ -77,3 +114,61 @@ resource "aws_eip_association" "app" {
   allocation_id = aws_eip.app.id
   instance_id   = aws_instance.app.id
 }
+
+resource "null_resource" "prepare_env" {
+  triggers = {
+    lex_bot_id = data.external.import_lex.result.bot_id
+  }
+
+  provisioner "local-exec" {
+    command = <<EOF
+python3 -c "
+import re
+with open('${path.module}/../.env', 'r') as f:
+    content = f.read()
+content = re.sub(r'^LEX_BOT_ID=.*', 'LEX_BOT_ID=${data.external.import_lex.result.bot_id}', content, flags=re.MULTILINE)
+with open('${path.module}/../.env.deploy', 'w') as f:
+    f.write(content)
+"
+EOF
+  }
+}
+
+resource "null_resource" "sync_env_and_restart" {
+  triggers = {
+    lex_bot_id = data.external.import_lex.result.bot_id
+    env_hash   = filesha256("${path.module}/../.env")
+  }
+
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = file(pathexpand("~/.ssh/id_ed25519"))
+    host        = aws_eip.app.public_ip
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/../.env.deploy"
+    destination = "/home/ubuntu/.env"
+  }
+
+  # Copy vào thư mục app và restart docker compose
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'Waiting for bootstrap to finish...'",
+      "until [ -f /opt/${var.project_name}/app/medusa-pubic/docker-compose.yml ]; do sleep 5; done",
+      "[ -f /home/ubuntu/.env ] && sudo mv /home/ubuntu/.env /opt/${var.project_name}/app/.env || true",
+      "sudo ln -sf /opt/${var.project_name}/app/.env /opt/${var.project_name}/app/medusa-pubic/.env",
+      "sudo chown ubuntu:ubuntu /opt/${var.project_name}/app/.env || true",
+      "cd /opt/${var.project_name}/app && sudo docker compose -f medusa-pubic/docker-compose.yml up -d --remove-orphans"
+    ]
+  }
+
+  depends_on = [
+    aws_instance.app,
+    aws_eip_association.app,
+    null_resource.prepare_env
+  ]
+}
+
+

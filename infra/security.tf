@@ -35,6 +35,17 @@ resource "aws_vpc_security_group_ingress_rule" "https" {
   to_port           = 443
 }
 
+resource "aws_vpc_security_group_ingress_rule" "app_ports" {
+  for_each = toset(["8000", "8080", "9000", "9001"])
+
+  security_group_id = aws_security_group.app.id
+  description       = "Public direct application port ${each.value}"
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = tonumber(each.value)
+  ip_protocol       = "tcp"
+  to_port           = tonumber(each.value)
+}
+
 resource "aws_vpc_security_group_egress_rule" "all" {
   security_group_id = aws_security_group.app.id
   description       = "Outbound package, registry, API, and AWS service access"

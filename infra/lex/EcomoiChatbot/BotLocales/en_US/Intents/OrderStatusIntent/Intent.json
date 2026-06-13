@@ -1,0 +1,246 @@
+{
+  "name": "OrderStatusIntent",
+  "identifier": "PJF4HZKAKB",
+  "displayName": null,
+  "description": "hỏi trạng thái đơn hàng.",
+  "parentIntentSignature": null,
+  "sampleUtterances": [
+    {
+      "utterance": "kiểm tra đơn hàng {order_id}"
+    },
+    {
+      "utterance": "đơn {order_id} tới đâu rồi"
+    },
+    {
+      "utterance": "trạng thái đơn hàng của tôi"
+    },
+    {
+      "utterance": "tôi muốn xem đơn hàng"
+    },
+    {
+      "utterance": "đơn hàng đã giao chưa"
+    },
+    {
+      "utterance": "tra cứu đơn hàng {order_id}"
+    },
+    {
+      "utterance": "đơn hàng của tôi {order_id}"
+    },
+    {
+      "utterance": "don hang cua toi {order_id}"
+    },
+    {
+      "utterance": "check giùm mình đơn {order_id}"
+    },
+    {
+      "utterance": "check gium minh don {order_id}"
+    },
+    {
+      "utterance": "xem đơn {order_id}"
+    },
+    {
+      "utterance": "đơn {order_id} giao chưa"
+    },
+    {
+      "utterance": "don {order_id} giao chua"
+    },
+    {
+      "utterance": "kiểm tra mã đơn {order_id}"
+    },
+    {
+      "utterance": "kiem tra ma don {order_id}"
+    },
+    {
+      "utterance": "đơn hàng của mình đang ở đâu"
+    },
+    {
+      "utterance": "don hang cua minh dang o dau"
+    },
+    {
+      "utterance": "khi nào nhận được hàng"
+    },
+    {
+      "utterance": "khi nao nhan duoc hang"
+    },
+    {
+      "utterance": "sao đơn {order_id} chưa giao"
+    },
+    {
+      "utterance": "sao don {order_id} chua giao"
+    },
+    {
+      "utterance": "đơn của mình {order_id} thế nào rồi"
+    },
+    {
+      "utterance": "tra mã đơn {order_id}"
+    },
+    {
+      "utterance": "sao lâu nhận được hàng thế shop"
+    },
+    {
+      "utterance": "sao lau nhan duoc hang the shop"
+    },
+    {
+      "utterance": "đơn {order_id} của mình bị trễ rồi"
+    },
+    {
+      "utterance": "hủy đơn {order_id} cho mình"
+    },
+    {
+      "utterance": "huy don {order_id} cho minh"
+    },
+    {
+      "utterance": "mình có được đồng kiểm khi nhận hàng ko"
+    },
+    {
+      "utterance": "co duoc xem hang truoc khi thanh toan ko"
+    },
+    {
+      "utterance": "giao hoả tốc {order_id} được không"
+    },
+    {
+      "utterance": "giao hoa toc {order_id} duoc khong"
+    },
+    {
+      "utterance": "đơn {order_id} đi tới tỉnh nào rồi"
+    },
+    {
+      "utterance": "bom hàng đơn {order_id}"
+    }
+  ],
+  "intentConfirmationSetting": null,
+  "intentClosingSetting": null,
+  "initialResponseSetting": {
+    "conditional": null,
+    "codeHook": {
+      "isActive": true,
+      "enableCodeHookInvocation": true,
+      "invocationLabel": null,
+      "postCodeHookSpecification": {
+        "failureResponse": null,
+        "failureNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "failureConditional": null,
+        "successResponse": null,
+        "successNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "ElicitSlot",
+            "slotToElicit": "order_id",
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "successConditional": null,
+        "timeoutResponse": null,
+        "timeoutNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "timeoutConditional": null
+      }
+    },
+    "nextStep": {
+      "sessionAttributes": null,
+      "dialogAction": {
+        "type": "InvokeDialogCodeHook",
+        "slotToElicit": null,
+        "suppressNextMessage": null,
+        "intentsInScope": null
+      },
+      "intent": {
+        "name": null,
+        "slots": null
+      }
+    },
+    "initialResponse": null
+  },
+  "inputContexts": null,
+  "outputContexts": null,
+  "kendraConfiguration": null,
+  "qnAIntentConfiguration": null,
+  "bedrockAgentIntentConfiguration": null,
+  "qInConnectIntentConfiguration": null,
+  "dialogCodeHook": {
+    "enabled": true
+  },
+  "fulfillmentCodeHook": {
+    "isActive": true,
+    "postFulfillmentStatusSpecification": {
+      "failureResponse": null,
+      "failureNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "successResponse": null,
+      "successNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "timeoutResponse": null,
+      "timeoutNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      }
+    },
+    "fulfillmentUpdatesSpecification": null,
+    "enabled": true
+  },
+  "slotPriorities": [
+    {
+      "priority": 1,
+      "slotName": "order_id"
+    }
+  ]
+}

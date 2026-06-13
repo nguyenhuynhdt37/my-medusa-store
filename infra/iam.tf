@@ -79,8 +79,6 @@ resource "aws_iam_role_policy" "deployment_s3" {
 }
 
 resource "aws_iam_role_policy" "lex_runtime" {
-  count = var.lex_bot_id != null && var.lex_bot_alias_id != null ? 1 : 0
-
   name = "${local.name_prefix}-lex-runtime"
   role = aws_iam_role.ec2.id
   policy = jsonencode({
@@ -89,7 +87,7 @@ resource "aws_iam_role_policy" "lex_runtime" {
       Sid      = "RecognizeTextWithConfiguredBotAlias"
       Effect   = "Allow"
       Action   = "lex:RecognizeText"
-      Resource = "arn:aws:lex:${var.aws_region}:${data.aws_caller_identity.current.account_id}:bot-alias/${var.lex_bot_id}/${var.lex_bot_alias_id}"
+      Resource = "arn:aws:lex:${var.aws_region}:${data.aws_caller_identity.current.account_id}:bot-alias/${data.external.import_lex.result.bot_id}/TSTALIASID"
     }]
   })
 }

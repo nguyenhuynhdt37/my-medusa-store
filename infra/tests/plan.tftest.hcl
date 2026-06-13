@@ -50,8 +50,12 @@ run "production_plan" {
       aws_vpc_security_group_ingress_rule.ssh.from_port,
       aws_vpc_security_group_ingress_rule.http.from_port,
       aws_vpc_security_group_ingress_rule.https.from_port,
-    ]) == toset([22, 80, 443])
-    error_message = "Only SSH, HTTP, and HTTPS ingress rules are expected."
+      aws_vpc_security_group_ingress_rule.app_ports["8000"].from_port,
+      aws_vpc_security_group_ingress_rule.app_ports["8080"].from_port,
+      aws_vpc_security_group_ingress_rule.app_ports["9000"].from_port,
+      aws_vpc_security_group_ingress_rule.app_ports["9001"].from_port,
+    ]) == toset([22, 80, 443, 8000, 8080, 9000, 9001])
+    error_message = "Only SSH, HTTP, HTTPS, and explicit application ingress rules are expected."
   }
 
   assert {

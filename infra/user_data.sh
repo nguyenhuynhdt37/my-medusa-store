@@ -371,6 +371,28 @@ EOF
   -s \
   -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
 
+# Wait for files to be copied by Terraform provisioner
+echo "Waiting for docker-compose.yml, init.sql, and .env to be uploaded..."
+until [ -f /home/ubuntu/docker-compose.yml ] && [ -f /home/ubuntu/init.sql ] && [ -f /home/ubuntu/.env ]; do
+  sleep 2
+done
+
+# Create app directory
+APP_DIR="/opt/${project_name}/app"
+mkdir -p "$APP_DIR/medusa-pubic"
+
+# Move files to their correct destination
+mv /home/ubuntu/docker-compose.yml "$APP_DIR/medusa-pubic/docker-compose.yml"
+mv /home/ubuntu/init.sql "$APP_DIR/medusa-pubic/init.sql"
+mv /home/ubuntu/.env "$APP_DIR/.env"
+ln -sf "$APP_DIR/.env" "$APP_DIR/medusa-pubic/.env"
+chown -R ubuntu:ubuntu "$APP_DIR"
+
+# Start Docker containers using medusa-pubic/docker-compose.yml
+echo "Running docker compose..."
+cd "$APP_DIR"
+docker compose -f medusa-pubic/docker-compose.yml up -d --remove-orphans
+
 cat >/etc/motd <<'EOF'
 Managed by Terraform.
 Deploy application files to /opt/${project_name}/app.
@@ -378,3 +400,4 @@ Backend ports must bind to 127.0.0.1 or an internal Docker network.
 EOF
 
 echo "Bootstrap completed successfully."
+
