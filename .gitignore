@@ -48,6 +48,7 @@ yarn-error.log*
 **/.env.development.local
 **/.env.test.local
 **/.env.production.local
+**/.env.deploy
 
 # Local production database dumps may contain customer data and credentials
 /medusa-pubic/init.sql
@@ -59,10 +60,12 @@ yarn-error.log*
 **/*.tfstate.*
 **/*.tfplan
 **/tfplan
+**/tfplan-replace
 **/terraform.tfvars
 **/*.auto.tfvars
 **/.terraformrc
 **/terraform.rc
+**/*.zip
 
 # Turbo
 .turbo
