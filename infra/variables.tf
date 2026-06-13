@@ -39,15 +39,15 @@ variable "public_subnet_cidr" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type. t3.medium is the production baseline for the full Docker Compose stack."
+  description = "EC2 instance type. t3.large is the production baseline for the full Docker Compose stack."
   type        = string
-  default     = "t3.medium"
+  default     = "t3.large"
 }
 
 variable "root_volume_size" {
   description = "Encrypted gp3 root volume size in GiB."
   type        = number
-  default     = 20
+  default     = 40
 
   validation {
     condition     = var.root_volume_size >= 12 && var.root_volume_size <= 100

@@ -86,7 +86,9 @@ services:
   storefront:
     image: nguyenhuynh04/my-medusa-store-storefront:latest
     platform: linux/amd64
-    pull_policy: always
+    # Storefront embeds NEXT_PUBLIC_* at build time, so build this image on the
+    # target amd64 host with the production domains and do not pull an old image.
+    pull_policy: never
     env_file:
       - .env
     depends_on:
