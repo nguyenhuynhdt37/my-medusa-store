@@ -1,0 +1,55 @@
+{
+  "name": "InstallmentTerm",
+  "identifier": "WG95OR0W8T",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "3 thang"
+        }
+      ],
+      "sampleValue": {
+        "value": "3 tháng"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "6 thang"
+        }
+      ],
+      "sampleValue": {
+        "value": "6 tháng"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "9 thang"
+        }
+      ],
+      "sampleValue": {
+        "value": "9 tháng"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "12 thang"
+        }
+      ],
+      "sampleValue": {
+        "value": "12 tháng"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

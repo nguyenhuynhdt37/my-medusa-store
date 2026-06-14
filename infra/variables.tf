@@ -109,6 +109,21 @@ variable "chatbot_domain" {
   }
 }
 
+variable "chatbot_webhook_url_override" {
+  description = "Optional full Lex V2 fulfillment webhook URL. Use this for temporary dev tunnels such as ngrok."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition = (
+      var.chatbot_webhook_url_override == null ||
+      can(regex("^https://.+/lexv2/webhook$", var.chatbot_webhook_url_override))
+    )
+    error_message = "chatbot_webhook_url_override must be null or a full HTTPS URL ending with /lexv2/webhook."
+  }
+}
+
 variable "letsencrypt_email" {
   description = "Email used for Let's Encrypt expiry and account notifications."
   type        = string
@@ -151,6 +166,16 @@ variable "lex_bot_alias_id" {
   validation {
     condition     = var.lex_bot_alias_id == null || can(regex("^[A-Z0-9]{10}$", var.lex_bot_alias_id))
     error_message = "lex_bot_alias_id must be null or a 10-character uppercase alphanumeric Lex alias ID."
+  }
+}
+
+variable "managed_lex_bot_id" {
+  description = "Amazon Lex V2 bot ID managed by the import script and used by EC2 runtime permissions."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[A-Z0-9]{10}$", var.managed_lex_bot_id))
+    error_message = "managed_lex_bot_id must be a 10-character uppercase alphanumeric Lex bot ID."
   }
 }
 

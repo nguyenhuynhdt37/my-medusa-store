@@ -1,0 +1,14 @@
+{
+  "name": "Quantity",
+  "identifier": "4IX9FDBGPM",
+  "description": null,
+  "slotTypeValues": null,
+  "parentSlotTypeSignature": "AMAZON.AlphaNumeric",
+  "valueSelectionSetting": {
+    "resolutionStrategy": "ORIGINAL_VALUE",
+    "advancedRecognitionSetting": null,
+    "regexFilter": {
+      "pattern": "[1-9][0-9]?"
+    }
+  }
+}

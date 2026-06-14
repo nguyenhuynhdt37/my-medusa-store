@@ -1,0 +1,115 @@
+{
+  "name": "UsageNeed",
+  "identifier": "4QXOVEWR2U",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "gaming"
+        },
+        {
+          "value": "pubg"
+        },
+        {
+          "value": "liên quân"
+        },
+        {
+          "value": "free fire"
+        }
+      ],
+      "sampleValue": {
+        "value": "chơi game"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "đi học"
+        },
+        {
+          "value": "sinh viên"
+        }
+      ],
+      "sampleValue": {
+        "value": "học tập"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "công việc"
+        },
+        {
+          "value": "work"
+        }
+      ],
+      "sampleValue": {
+        "value": "văn phòng"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "camera đẹp"
+        },
+        {
+          "value": "sống ảo"
+        }
+      ],
+      "sampleValue": {
+        "value": "chụp ảnh"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "vlog"
+        },
+        {
+          "value": "tiktok"
+        },
+        {
+          "value": "livestream"
+        }
+      ],
+      "sampleValue": {
+        "value": "quay video"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "pin khoẻ"
+        },
+        {
+          "value": "dùng lâu"
+        }
+      ],
+      "sampleValue": {
+        "value": "pin trâu"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "compact"
+        },
+        {
+          "value": "gọn nhẹ"
+        }
+      ],
+      "sampleValue": {
+        "value": "máy nhỏ gọn"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

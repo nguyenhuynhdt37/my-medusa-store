@@ -1,0 +1,97 @@
+{
+  "name": "Color",
+  "identifier": "JNCZXRTMJA",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "black"
+        },
+        {
+          "value": "màu đen"
+        }
+      ],
+      "sampleValue": {
+        "value": "Đen"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "white"
+        },
+        {
+          "value": "màu trắng"
+        }
+      ],
+      "sampleValue": {
+        "value": "Trắng"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "blue"
+        },
+        {
+          "value": "xanh dương"
+        }
+      ],
+      "sampleValue": {
+        "value": "Xanh"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "titanium"
+        },
+        {
+          "value": "titan tự nhiên"
+        }
+      ],
+      "sampleValue": {
+        "value": "Titan"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "pink"
+        }
+      ],
+      "sampleValue": {
+        "value": "Hồng"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "purple"
+        }
+      ],
+      "sampleValue": {
+        "value": "Tím"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "gold"
+        }
+      ],
+      "sampleValue": {
+        "value": "Vàng"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

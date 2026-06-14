@@ -41,7 +41,8 @@ resource "aws_lambda_function" "chatbot_lambda" {
 
   environment {
     variables = {
-      CHATBOT_SERVICE_URL = "https://${var.chatbot_domain}/lexv2/webhook"
+      CHATBOT_LEXV2_WEBHOOK_URL = local.chatbot_webhook_url
+      CHATBOT_SERVICE_URL       = local.chatbot_webhook_url
     }
   }
 
@@ -83,20 +84,9 @@ resource "aws_lambda_permission" "allow_lex" {
   source_arn    = "arn:aws:lex:${var.aws_region}:${data.aws_caller_identity.current.account_id}:bot-alias/*"
 }
 
-# Gọi script import Amazon Lex V2 Bot
-data "external" "import_lex" {
-  program = ["bash", "${path.module}/scripts/import_lex_bot.sh"]
-
-  query = {
-    lex_dir    = abspath("${path.module}/lex")
-    lambda_arn = aws_lambda_function.chatbot_lambda.arn
-    account_id = data.aws_caller_identity.current.account_id
-  }
-}
-
 resource "null_resource" "cleanup_lex" {
   triggers = {
-    bot_id = data.external.import_lex.result.bot_id
+    bot_id = var.managed_lex_bot_id
   }
 
   provisioner "local-exec" {
@@ -104,4 +94,3 @@ resource "null_resource" "cleanup_lex" {
     command = "aws lexv2-models delete-bot --bot-id ${self.triggers.bot_id} --skip-resource-in-use-check || true"
   }
 }
-

@@ -1,0 +1,65 @@
+{
+  "name": "Storage",
+  "identifier": "YD2AG09MSC",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "64 g"
+        }
+      ],
+      "sampleValue": {
+        "value": "64GB"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "128 g"
+        }
+      ],
+      "sampleValue": {
+        "value": "128GB"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "256 g"
+        }
+      ],
+      "sampleValue": {
+        "value": "256GB"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "512 g"
+        }
+      ],
+      "sampleValue": {
+        "value": "512GB"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "1 tera"
+        }
+      ],
+      "sampleValue": {
+        "value": "1TB"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

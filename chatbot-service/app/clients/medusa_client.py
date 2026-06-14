@@ -178,10 +178,6 @@ class MedusaClient:
         normalized = order_code.strip()
         display_id = self._extract_display_id(normalized)
         params: dict[str, Any] = {"limit": 100}
-        if display_id is not None:
-            params["display_id"] = display_id
-        else:
-            params["q"] = normalized
 
         data = await self._request("GET", "/store/orders", params=params, headers=headers)
         orders = data.get("orders", [])

@@ -1,0 +1,87 @@
+{
+  "name": "PaymentMethod",
+  "identifier": "SUBSC2YD6W",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "tiền mặt"
+        },
+        {
+          "value": "thanh toán khi nhận"
+        }
+      ],
+      "sampleValue": {
+        "value": "COD"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ví momo"
+        }
+      ],
+      "sampleValue": {
+        "value": "Momo"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "vn pay"
+        }
+      ],
+      "sampleValue": {
+        "value": "VNPAY"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "chuyển khoản"
+        },
+        {
+          "value": "bank"
+        }
+      ],
+      "sampleValue": {
+        "value": "Banking"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "visa"
+        },
+        {
+          "value": "mastercard"
+        },
+        {
+          "value": "thẻ tín dụng"
+        }
+      ],
+      "sampleValue": {
+        "value": "Credit Card"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "trả góp"
+        }
+      ],
+      "sampleValue": {
+        "value": "Installment"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

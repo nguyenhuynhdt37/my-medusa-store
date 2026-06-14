@@ -1,0 +1,319 @@
+{
+  "name": "ComplaintIntent",
+  "identifier": "ODNC7XIFYH",
+  "displayName": null,
+  "description": "Khiếu nại và phản ánh",
+  "parentIntentSignature": null,
+  "sampleUtterances": [
+    {
+      "utterance": "tôi muốn khiếu nại"
+    },
+    {
+      "utterance": "toi muon khieu nai"
+    },
+    {
+      "utterance": "dịch vụ quá tệ"
+    },
+    {
+      "utterance": "dich vu qua te"
+    },
+    {
+      "utterance": "đơn giao lâu quá"
+    },
+    {
+      "utterance": "don giao lau qua"
+    },
+    {
+      "utterance": "nhân viên hỗ trợ chậm"
+    },
+    {
+      "utterance": "nhan vien ho tro cham"
+    },
+    {
+      "utterance": "shop xử lý giúp tôi"
+    },
+    {
+      "utterance": "shop xu ly giup toi"
+    },
+    {
+      "utterance": "giao hàng lâu vậy"
+    },
+    {
+      "utterance": "giao hang lau vay"
+    },
+    {
+      "utterance": "tôi không hài lòng"
+    },
+    {
+      "utterance": "toi khong hai long"
+    },
+    {
+      "utterance": "mình muốn phản ánh"
+    },
+    {
+      "utterance": "minh muon phan anh"
+    },
+    {
+      "utterance": "dịch vụ chán quá"
+    },
+    {
+      "utterance": "dich vu chan qua"
+    },
+    {
+      "utterance": "shop xử lý kiểu gì thế"
+    },
+    {
+      "utterance": "shop xu ly kieu gi the"
+    },
+    {
+      "utterance": "tôi muốn khiếu nại giúp mình"
+    },
+    {
+      "utterance": "toi muon khieu nai giúp mình"
+    },
+    {
+      "utterance": "dịch vụ quá tệ giúp mình"
+    },
+    {
+      "utterance": "dich vu qua te giúp mình"
+    },
+    {
+      "utterance": "đơn giao lâu quá giúp mình"
+    },
+    {
+      "utterance": "don giao lau qua giúp mình"
+    },
+    {
+      "utterance": "nhân viên hỗ trợ chậm giúp mình"
+    },
+    {
+      "utterance": "nhan vien ho tro cham giúp mình"
+    },
+    {
+      "utterance": "shop xử lý giúp tôi giúp mình"
+    },
+    {
+      "utterance": "shop xu ly giup toi giúp mình"
+    },
+    {
+      "utterance": "giao hàng lâu vậy giúp mình"
+    },
+    {
+      "utterance": "giao hang lau vay giúp mình"
+    },
+    {
+      "utterance": "tôi không hài lòng giúp mình"
+    },
+    {
+      "utterance": "toi khong hai long giúp mình"
+    },
+    {
+      "utterance": "mình muốn phản ánh giúp mình"
+    },
+    {
+      "utterance": "minh muon phan anh giúp mình"
+    },
+    {
+      "utterance": "dịch vụ chán quá giúp mình"
+    },
+    {
+      "utterance": "dich vu chan qua giúp mình"
+    },
+    {
+      "utterance": "shop xử lý kiểu gì thế giúp mình"
+    },
+    {
+      "utterance": "shop xu ly kieu gi the giúp mình"
+    },
+    {
+      "utterance": "tôi muốn khiếu nại giup minh"
+    },
+    {
+      "utterance": "toi muon khieu nai giup minh"
+    },
+    {
+      "utterance": "dịch vụ quá tệ giup minh"
+    },
+    {
+      "utterance": "dich vu qua te giup minh"
+    },
+    {
+      "utterance": "đơn giao lâu quá giup minh"
+    },
+    {
+      "utterance": "don giao lau qua giup minh"
+    },
+    {
+      "utterance": "nhân viên hỗ trợ chậm giup minh"
+    },
+    {
+      "utterance": "nhan vien ho tro cham giup minh"
+    },
+    {
+      "utterance": "shop xử lý giúp tôi giup minh"
+    },
+    {
+      "utterance": "shop xu ly giup toi giup minh"
+    },
+    {
+      "utterance": "giao hàng lâu vậy giup minh"
+    },
+    {
+      "utterance": "giao hang lau vay giup minh"
+    },
+    {
+      "utterance": "tôi không hài lòng giup minh"
+    },
+    {
+      "utterance": "toi khong hai long giup minh"
+    },
+    {
+      "utterance": "mình muốn phản ánh giup minh"
+    },
+    {
+      "utterance": "minh muon phan anh giup minh"
+    },
+    {
+      "utterance": "dịch vụ chán quá giup minh"
+    },
+    {
+      "utterance": "dich vu chan qua giup minh"
+    },
+    {
+      "utterance": "shop xử lý kiểu gì thế giup minh"
+    },
+    {
+      "utterance": "shop xu ly kieu gi the giup minh"
+    }
+  ],
+  "intentConfirmationSetting": null,
+  "intentClosingSetting": null,
+  "initialResponseSetting": {
+    "conditional": null,
+    "codeHook": {
+      "isActive": true,
+      "enableCodeHookInvocation": true,
+      "invocationLabel": null,
+      "postCodeHookSpecification": {
+        "failureResponse": null,
+        "failureNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "failureConditional": null,
+        "successResponse": null,
+        "successNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "FulfillIntent",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "successConditional": null,
+        "timeoutResponse": null,
+        "timeoutNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "timeoutConditional": null
+      }
+    },
+    "nextStep": {
+      "sessionAttributes": null,
+      "dialogAction": {
+        "type": "InvokeDialogCodeHook",
+        "slotToElicit": null,
+        "suppressNextMessage": null,
+        "intentsInScope": null
+      },
+      "intent": {
+        "name": null,
+        "slots": null
+      }
+    },
+    "initialResponse": null
+  },
+  "inputContexts": null,
+  "outputContexts": null,
+  "kendraConfiguration": null,
+  "qnAIntentConfiguration": null,
+  "bedrockAgentIntentConfiguration": null,
+  "qInConnectIntentConfiguration": null,
+  "dialogCodeHook": {
+    "enabled": true
+  },
+  "fulfillmentCodeHook": {
+    "isActive": true,
+    "postFulfillmentStatusSpecification": {
+      "failureResponse": null,
+      "failureNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "successResponse": null,
+      "successNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "timeoutResponse": null,
+      "timeoutNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      }
+    },
+    "fulfillmentUpdatesSpecification": null,
+    "enabled": true
+  },
+  "slotPriorities": null
+}

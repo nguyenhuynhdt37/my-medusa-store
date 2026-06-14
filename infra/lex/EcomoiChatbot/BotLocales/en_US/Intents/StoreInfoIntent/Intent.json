@@ -1,0 +1,324 @@
+{
+  "name": "StoreInfoIntent",
+  "identifier": "BUKNQVZNN0",
+  "displayName": null,
+  "description": "Thông tin cửa hàng",
+  "parentIntentSignature": null,
+  "sampleUtterances": [
+    {
+      "utterance": "shop ở đâu"
+    },
+    {
+      "utterance": "shop o dau"
+    },
+    {
+      "utterance": "địa chỉ cửa hàng"
+    },
+    {
+      "utterance": "dia chi cua hang"
+    },
+    {
+      "utterance": "giờ mở cửa"
+    },
+    {
+      "utterance": "gio mo cua"
+    },
+    {
+      "utterance": "số điện thoại shop"
+    },
+    {
+      "utterance": "so dien thoai shop"
+    },
+    {
+      "utterance": "liên hệ cửa hàng"
+    },
+    {
+      "utterance": "lien he cua hang"
+    },
+    {
+      "utterance": "có chi nhánh nào không"
+    },
+    {
+      "utterance": "co chi nhanh nao khong"
+    },
+    {
+      "utterance": "cửa hàng ở đâu"
+    },
+    {
+      "utterance": "cua hang o dau"
+    },
+    {
+      "utterance": "mấy giờ mở cửa"
+    },
+    {
+      "utterance": "may gio mo cua"
+    },
+    {
+      "utterance": "địa chỉ shop là gì"
+    },
+    {
+      "utterance": "dia chi shop la gi"
+    },
+    {
+      "utterance": "cuối tuần có mở không"
+    },
+    {
+      "utterance": "cuoi tuan co mo khong"
+    },
+    {
+      "utterance": "shop ở đâu giúp mình"
+    },
+    {
+      "utterance": "shop o dau giúp mình"
+    },
+    {
+      "utterance": "địa chỉ cửa hàng giúp mình"
+    },
+    {
+      "utterance": "dia chi cua hang giúp mình"
+    },
+    {
+      "utterance": "giờ mở cửa giúp mình"
+    },
+    {
+      "utterance": "gio mo cua giúp mình"
+    },
+    {
+      "utterance": "số điện thoại shop giúp mình"
+    },
+    {
+      "utterance": "so dien thoai shop giúp mình"
+    },
+    {
+      "utterance": "liên hệ cửa hàng giúp mình"
+    },
+    {
+      "utterance": "lien he cua hang giúp mình"
+    },
+    {
+      "utterance": "có chi nhánh nào không giúp mình"
+    },
+    {
+      "utterance": "co chi nhanh nao khong giúp mình"
+    },
+    {
+      "utterance": "cửa hàng ở đâu giúp mình"
+    },
+    {
+      "utterance": "cua hang o dau giúp mình"
+    },
+    {
+      "utterance": "mấy giờ mở cửa giúp mình"
+    },
+    {
+      "utterance": "may gio mo cua giúp mình"
+    },
+    {
+      "utterance": "địa chỉ shop là gì giúp mình"
+    },
+    {
+      "utterance": "dia chi shop la gi giúp mình"
+    },
+    {
+      "utterance": "cuối tuần có mở không giúp mình"
+    },
+    {
+      "utterance": "cuoi tuan co mo khong giúp mình"
+    },
+    {
+      "utterance": "shop ở đâu giup minh"
+    },
+    {
+      "utterance": "shop o dau giup minh"
+    },
+    {
+      "utterance": "địa chỉ cửa hàng giup minh"
+    },
+    {
+      "utterance": "dia chi cua hang giup minh"
+    },
+    {
+      "utterance": "giờ mở cửa giup minh"
+    },
+    {
+      "utterance": "gio mo cua giup minh"
+    },
+    {
+      "utterance": "số điện thoại shop giup minh"
+    },
+    {
+      "utterance": "so dien thoai shop giup minh"
+    },
+    {
+      "utterance": "liên hệ cửa hàng giup minh"
+    },
+    {
+      "utterance": "lien he cua hang giup minh"
+    },
+    {
+      "utterance": "có chi nhánh nào không giup minh"
+    },
+    {
+      "utterance": "co chi nhanh nao khong giup minh"
+    },
+    {
+      "utterance": "cửa hàng ở đâu giup minh"
+    },
+    {
+      "utterance": "cua hang o dau giup minh"
+    },
+    {
+      "utterance": "mấy giờ mở cửa giup minh"
+    },
+    {
+      "utterance": "may gio mo cua giup minh"
+    },
+    {
+      "utterance": "địa chỉ shop là gì giup minh"
+    },
+    {
+      "utterance": "dia chi shop la gi giup minh"
+    },
+    {
+      "utterance": "cuối tuần có mở không giup minh"
+    },
+    {
+      "utterance": "cuoi tuan co mo khong giup minh"
+    }
+  ],
+  "intentConfirmationSetting": null,
+  "intentClosingSetting": null,
+  "initialResponseSetting": {
+    "conditional": null,
+    "codeHook": {
+      "isActive": true,
+      "enableCodeHookInvocation": true,
+      "invocationLabel": null,
+      "postCodeHookSpecification": {
+        "failureResponse": null,
+        "failureNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "failureConditional": null,
+        "successResponse": null,
+        "successNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "FulfillIntent",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "successConditional": null,
+        "timeoutResponse": null,
+        "timeoutNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "timeoutConditional": null
+      }
+    },
+    "nextStep": {
+      "sessionAttributes": null,
+      "dialogAction": {
+        "type": "InvokeDialogCodeHook",
+        "slotToElicit": null,
+        "suppressNextMessage": null,
+        "intentsInScope": null
+      },
+      "intent": {
+        "name": null,
+        "slots": null
+      }
+    },
+    "initialResponse": null
+  },
+  "inputContexts": null,
+  "outputContexts": null,
+  "kendraConfiguration": null,
+  "qnAIntentConfiguration": null,
+  "bedrockAgentIntentConfiguration": null,
+  "qInConnectIntentConfiguration": null,
+  "dialogCodeHook": {
+    "enabled": true
+  },
+  "fulfillmentCodeHook": {
+    "isActive": true,
+    "postFulfillmentStatusSpecification": {
+      "failureResponse": null,
+      "failureNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "successResponse": null,
+      "successNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "timeoutResponse": null,
+      "timeoutNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      }
+    },
+    "fulfillmentUpdatesSpecification": null,
+    "enabled": true
+  },
+  "slotPriorities": [
+    {
+      "priority": 1,
+      "slotName": "province"
+    }
+  ]
+}

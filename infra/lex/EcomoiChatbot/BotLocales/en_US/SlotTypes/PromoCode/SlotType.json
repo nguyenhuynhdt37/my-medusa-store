@@ -1,1 +1,45 @@
-{"name":"PromoCode","identifier":"UHEG1PJMUD","description":null,"slotTypeValues":[{"synonyms":null,"sampleValue":{"value":"WELCOME10"}},{"synonyms":null,"sampleValue":{"value":"ANDROID15"}},{"synonyms":null,"sampleValue":{"value":"PHONE500K"}},{"synonyms":null,"sampleValue":{"value":"FREESHIP"}},{"synonyms":null,"sampleValue":{"value":"PREORDER17"}}],"parentSlotTypeSignature":null,"valueSelectionSetting":{"resolutionStrategy":"ORIGINAL_VALUE","advancedRecognitionSetting":{"audioRecognitionStrategy":"UseSlotValuesAsCustomVocabulary"},"regexFilter":null}}
+{
+  "name": "PromoCode",
+  "identifier": "90SVEL1D3M",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "WELCOME10"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "ANDROID15"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "PHONE500K"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "FREESHIP"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "PREORDER17"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "name": "RAM",
+  "identifier": "Y48RFJ9ZKB",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "4GB"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "6GB"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "8GB"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "12GB"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "16GB"
+      }
+    },
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "24GB"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

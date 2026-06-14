@@ -1,0 +1,326 @@
+{
+  "name": "ProductModel",
+  "identifier": "6VQ0E7HMR6",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "ip11"
+        },
+        {
+          "value": "iphone mười một"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 11"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip12"
+        },
+        {
+          "value": "iphone mười hai"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 12"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip13"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 13"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip14"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 14"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip15"
+        },
+        {
+          "value": "iphone mười lăm"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 15"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip15 pro"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 15 Pro"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip15 prm"
+        },
+        {
+          "value": "ip15 promax"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 15 Pro Max"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip16"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 16"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip16 plus"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 16 Plus"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip16 pro"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 16 Pro"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip16 prm"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 16 Pro Max"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip17"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 17"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip17 pro"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 17 Pro"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ip17 prm"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone 17 Pro Max"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "iphone mỏng"
+        },
+        {
+          "value": "iphone air"
+        }
+      ],
+      "sampleValue": {
+        "value": "iPhone Air"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "s24"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung Galaxy S24"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "s24 ultra"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung Galaxy S24 Ultra"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "s25"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung Galaxy S25"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "s25 ultra"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung Galaxy S25 Ultra"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "s26 plus"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung Galaxy S26 Plus"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "s26 ultra"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung Galaxy S26 Ultra"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "fold7"
+        },
+        {
+          "value": "z fold 7"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung Galaxy Z Fold7"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "flip7"
+        },
+        {
+          "value": "z flip 7"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung Galaxy Z Flip7"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "mi 15 ultra"
+        }
+      ],
+      "sampleValue": {
+        "value": "Xiaomi 15 Ultra"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "find x8 pro"
+        }
+      ],
+      "sampleValue": {
+        "value": "OPPO Find X8 Pro"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "x200 pro"
+        }
+      ],
+      "sampleValue": {
+        "value": "vivo X200 Pro"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "nothing 3"
+        }
+      ],
+      "sampleValue": {
+        "value": "Nothing Phone 3"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "1plus 13"
+        }
+      ],
+      "sampleValue": {
+        "value": "OnePlus 13"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "pixel 10 pro xl"
+        }
+      ],
+      "sampleValue": {
+        "value": "Google Pixel 10 Pro XL"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

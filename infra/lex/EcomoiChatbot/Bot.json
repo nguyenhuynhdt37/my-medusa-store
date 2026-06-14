@@ -1,1 +1,13 @@
-{"name":"EcomoiChatbot","version":"DRAFT","description":"IAM permissions:\nCreate a role with basic Amazon Lex permissions","identifier":"X1XWQGOXOP","errorLogSettings":{"enabled":false},"dataPrivacy":{"childDirected":false},"idleSessionTTLInSeconds":300}
+{
+  "name": "EcomoiChatbot",
+  "version": "DRAFT",
+  "description": "Production-oriented Vietnamese phone store chatbot for MedusaJS using Lex V2, Lambda and FastAPI.",
+  "identifier": "L2QJQ9FGFY",
+  "errorLogSettings": {
+    "enabled": false
+  },
+  "dataPrivacy": {
+    "childDirected": false
+  },
+  "idleSessionTTLInSeconds": 300
+}

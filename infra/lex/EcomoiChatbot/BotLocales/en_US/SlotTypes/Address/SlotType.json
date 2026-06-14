@@ -1,0 +1,31 @@
+{
+  "name": "Address",
+  "identifier": "8MNR002RT0",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "dia chi moi"
+        },
+        {
+          "value": "nhà riêng"
+        },
+        {
+          "value": "công ty"
+        }
+      ],
+      "sampleValue": {
+        "value": "địa chỉ mới"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

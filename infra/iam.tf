@@ -87,7 +87,7 @@ resource "aws_iam_role_policy" "lex_runtime" {
       Sid      = "RecognizeTextWithConfiguredBotAlias"
       Effect   = "Allow"
       Action   = "lex:RecognizeText"
-      Resource = "arn:aws:lex:${var.aws_region}:${data.aws_caller_identity.current.account_id}:bot-alias/${data.external.import_lex.result.bot_id}/TSTALIASID"
+      Resource = "arn:aws:lex:${var.aws_region}:${data.aws_caller_identity.current.account_id}:bot-alias/${var.managed_lex_bot_id}/TSTALIASID"
     }]
   })
 }

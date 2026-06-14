@@ -1,0 +1,328 @@
+{
+  "name": "WarrantyClaimIntent",
+  "identifier": "KFBZPPLO4W",
+  "displayName": null,
+  "description": "Tạo yêu cầu bảo hành",
+  "parentIntentSignature": null,
+  "sampleUtterances": [
+    {
+      "utterance": "gửi bảo hành {product_name}"
+    },
+    {
+      "utterance": "gui bao hanh {product_name}"
+    },
+    {
+      "utterance": "máy bị lỗi cần bảo hành"
+    },
+    {
+      "utterance": "may bi loi can bao hanh"
+    },
+    {
+      "utterance": "bảo hành đơn {order_id}"
+    },
+    {
+      "utterance": "bao hanh don {order_id}"
+    },
+    {
+      "utterance": "shop nhận bảo hành không"
+    },
+    {
+      "utterance": "shop nhan bao hanh khong"
+    },
+    {
+      "utterance": "máy sập nguồn cần kiểm tra"
+    },
+    {
+      "utterance": "may sap nguon can kiem tra"
+    },
+    {
+      "utterance": "máy bị lỗi rồi"
+    },
+    {
+      "utterance": "may bi loi roi"
+    },
+    {
+      "utterance": "tạo yêu cầu bảo hành"
+    },
+    {
+      "utterance": "tao yeu cau bao hanh"
+    },
+    {
+      "utterance": "gửi bảo hành giúp mình"
+    },
+    {
+      "utterance": "gui bao hanh giup minh"
+    },
+    {
+      "utterance": "cần mang đi bảo hành"
+    },
+    {
+      "utterance": "can mang di bao hanh"
+    },
+    {
+      "utterance": "bảo hành sản phẩm này"
+    },
+    {
+      "utterance": "bao hanh san pham nay"
+    },
+    {
+      "utterance": "gửi bảo hành {product_name} giúp mình"
+    },
+    {
+      "utterance": "gui bao hanh {product_name} giúp mình"
+    },
+    {
+      "utterance": "máy bị lỗi cần bảo hành giúp mình"
+    },
+    {
+      "utterance": "may bi loi can bao hanh giúp mình"
+    },
+    {
+      "utterance": "bảo hành đơn {order_id} giúp mình"
+    },
+    {
+      "utterance": "bao hanh don {order_id} giúp mình"
+    },
+    {
+      "utterance": "shop nhận bảo hành không giúp mình"
+    },
+    {
+      "utterance": "shop nhan bao hanh khong giúp mình"
+    },
+    {
+      "utterance": "máy sập nguồn cần kiểm tra giúp mình"
+    },
+    {
+      "utterance": "may sap nguon can kiem tra giúp mình"
+    },
+    {
+      "utterance": "máy bị lỗi rồi giúp mình"
+    },
+    {
+      "utterance": "may bi loi roi giúp mình"
+    },
+    {
+      "utterance": "tạo yêu cầu bảo hành giúp mình"
+    },
+    {
+      "utterance": "tao yeu cau bao hanh giúp mình"
+    },
+    {
+      "utterance": "gửi bảo hành giúp mình giúp mình"
+    },
+    {
+      "utterance": "gui bao hanh giup minh giúp mình"
+    },
+    {
+      "utterance": "cần mang đi bảo hành giúp mình"
+    },
+    {
+      "utterance": "can mang di bao hanh giúp mình"
+    },
+    {
+      "utterance": "bảo hành sản phẩm này giúp mình"
+    },
+    {
+      "utterance": "bao hanh san pham nay giúp mình"
+    },
+    {
+      "utterance": "gửi bảo hành {product_name} giup minh"
+    },
+    {
+      "utterance": "gui bao hanh {product_name} giup minh"
+    },
+    {
+      "utterance": "máy bị lỗi cần bảo hành giup minh"
+    },
+    {
+      "utterance": "may bi loi can bao hanh giup minh"
+    },
+    {
+      "utterance": "bảo hành đơn {order_id} giup minh"
+    },
+    {
+      "utterance": "bao hanh don {order_id} giup minh"
+    },
+    {
+      "utterance": "shop nhận bảo hành không giup minh"
+    },
+    {
+      "utterance": "shop nhan bao hanh khong giup minh"
+    },
+    {
+      "utterance": "máy sập nguồn cần kiểm tra giup minh"
+    },
+    {
+      "utterance": "may sap nguon can kiem tra giup minh"
+    },
+    {
+      "utterance": "máy bị lỗi rồi giup minh"
+    },
+    {
+      "utterance": "may bi loi roi giup minh"
+    },
+    {
+      "utterance": "tạo yêu cầu bảo hành giup minh"
+    },
+    {
+      "utterance": "tao yeu cau bao hanh giup minh"
+    },
+    {
+      "utterance": "gửi bảo hành giúp mình giup minh"
+    },
+    {
+      "utterance": "gui bao hanh giup minh giup minh"
+    },
+    {
+      "utterance": "cần mang đi bảo hành giup minh"
+    },
+    {
+      "utterance": "can mang di bao hanh giup minh"
+    },
+    {
+      "utterance": "bảo hành sản phẩm này giup minh"
+    },
+    {
+      "utterance": "bao hanh san pham nay giup minh"
+    }
+  ],
+  "intentConfirmationSetting": null,
+  "intentClosingSetting": null,
+  "initialResponseSetting": {
+    "conditional": null,
+    "codeHook": {
+      "isActive": true,
+      "enableCodeHookInvocation": true,
+      "invocationLabel": null,
+      "postCodeHookSpecification": {
+        "failureResponse": null,
+        "failureNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "failureConditional": null,
+        "successResponse": null,
+        "successNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "FulfillIntent",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "successConditional": null,
+        "timeoutResponse": null,
+        "timeoutNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "timeoutConditional": null
+      }
+    },
+    "nextStep": {
+      "sessionAttributes": null,
+      "dialogAction": {
+        "type": "InvokeDialogCodeHook",
+        "slotToElicit": null,
+        "suppressNextMessage": null,
+        "intentsInScope": null
+      },
+      "intent": {
+        "name": null,
+        "slots": null
+      }
+    },
+    "initialResponse": null
+  },
+  "inputContexts": null,
+  "outputContexts": null,
+  "kendraConfiguration": null,
+  "qnAIntentConfiguration": null,
+  "bedrockAgentIntentConfiguration": null,
+  "qInConnectIntentConfiguration": null,
+  "dialogCodeHook": {
+    "enabled": true
+  },
+  "fulfillmentCodeHook": {
+    "isActive": true,
+    "postFulfillmentStatusSpecification": {
+      "failureResponse": null,
+      "failureNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "successResponse": null,
+      "successNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "timeoutResponse": null,
+      "timeoutNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      }
+    },
+    "fulfillmentUpdatesSpecification": null,
+    "enabled": true
+  },
+  "slotPriorities": [
+    {
+      "priority": 1,
+      "slotName": "order_id"
+    },
+    {
+      "priority": 2,
+      "slotName": "product_name"
+    }
+  ]
+}

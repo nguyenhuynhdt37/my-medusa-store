@@ -1,0 +1,80 @@
+{
+  "name": "Budget",
+  "identifier": "W1OIU0ZZ2A",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "duoi 5 trieu"
+        },
+        {
+          "value": "5tr"
+        }
+      ],
+      "sampleValue": {
+        "value": "dưới 5 triệu"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "duoi 10 trieu"
+        },
+        {
+          "value": "10tr"
+        }
+      ],
+      "sampleValue": {
+        "value": "dưới 10 triệu"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "duoi 15 trieu"
+        },
+        {
+          "value": "15tr"
+        }
+      ],
+      "sampleValue": {
+        "value": "dưới 15 triệu"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "duoi 20 trieu"
+        },
+        {
+          "value": "20tr"
+        }
+      ],
+      "sampleValue": {
+        "value": "dưới 20 triệu"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "tren 20 trieu"
+        },
+        {
+          "value": "cao cấp"
+        }
+      ],
+      "sampleValue": {
+        "value": "trên 20 triệu"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

@@ -1,7 +1,8 @@
 import pytest
 
 from app.schemas.lexv2 import LexV2Request
-from app.services.intent_service import IntentService
+from app.services.intent_service import IntentService, extract_product_compare_names_from_text
+from tests.test_extended_scenarios import ExtendedFakeMedusaClient
 
 
 class FakeMedusaClient:
@@ -129,6 +130,72 @@ class FakeHumanResolvingGeminiClient(FakeGeminiClient):
         return {"intent": "human_handover", "confidence": 0.95}
 
 
+class FakeRecommendationGeminiClient(FakeGeminiClient):
+    def __init__(self):
+        self.recommendation_called = False
+        self.last_user_text = None
+        self.last_products = None
+
+    async def generate_product_recommendation(self, user_text, products):
+        self.recommendation_called = True
+        self.last_user_text = user_text
+        self.last_products = products
+        return {
+            "recommended_product_ids": ["prod_1"],
+            "recommendation_message": "Đây là gợi ý của Gemini dành cho mẹ của bạn."
+        }
+
+
+
+class PhoneCatalogFakeMedusaClient:
+    def __init__(self):
+        self.products = [
+            self._product("iPhone 16", "iphone-16", 19990000),
+            self._product("iPhone 17", "iphone-17", 22990000),
+            self._product("iPhone 11", "iphone-11", 6990000),
+            self._product("Samsung Galaxy S26 Ultra", "samsung-galaxy-s26-ultra", 32990000),
+            self._product("Samsung Galaxy S26 Plus", "samsung-galaxy-s26-plus", 25990000),
+        ]
+
+    @staticmethod
+    def _product(title, handle, amount):
+        return {
+            "title": title,
+            "handle": handle,
+            "variants": [
+                {
+                    "title": "Default",
+                    "calculated_price": {
+                        "calculated_amount": amount,
+                        "original_amount": amount,
+                        "currency_code": "vnd",
+                    },
+                }
+            ],
+        }
+
+    async def list_products(self, query=None, limit=50):
+        if not query:
+            return self.products[:limit]
+
+        query_lower = query.lower()
+        if "iphone 16 pro max" in query_lower:
+            return [self.products[0]]
+
+        results = [
+            product
+            for product in self.products
+            if query_lower in product["title"].lower() or query_lower in product["handle"].lower()
+        ]
+        return results[:limit]
+
+    async def find_customer_order(self, order_code, customer_access_token):
+        return None
+
+    async def list_customer_orders(self, customer_access_token, limit=10):
+        return []
+
+
 def make_request(intent: str, parameters: dict, text: str | None = None):
     return LexV2Request(
         inputTranscript=text,
@@ -141,6 +208,24 @@ def make_request(intent: str, parameters: dict, text: str | None = None):
                 }
             },
             "sessionAttributes": parameters.copy()
+        }
+    )
+
+
+def make_request_with_session(intent: str, parameters: dict, session: dict, text: str | None = None):
+    merged = session.copy()
+    merged.update(parameters)
+    return LexV2Request(
+        inputTranscript=text,
+        sessionState={
+            "intent": {
+                "name": intent,
+                "slots": {
+                    name: {"value": {"interpretedValue": val}}
+                    for name, val in parameters.items()
+                }
+            },
+            "sessionAttributes": merged,
         }
     )
 
@@ -258,8 +343,7 @@ async def test_order_status_misclassification_without_order_text_falls_back():
     response = await service.handle(make_request("OrderStatusIntent", {}, text="asdf qwer zxcv không hiểu gì"))
 
     message = response.fulfillment_response.messages[0].text.text[0]
-    assert "Mình chưa hiểu rõ yêu cầu" in message
-    assert "sản phẩm" in message
+    assert "đăng nhập" in message
     assert len(response.fulfillment_response.messages) == 1
 
 
@@ -543,11 +627,11 @@ async def test_specific_lex_intent_does_not_call_gemini_resolution():
 
     assert gemini_client.resolve_called is False
     assert response.session_info.parameters["resolved_intent"] == "shipping_policy"
-    assert response.session_info.parameters["resolution_source"] == "local_nlu"
+    assert response.session_info.parameters["resolution_source"] == "lex"
 
 
 @pytest.mark.asyncio
-async def test_fallback_lex_intent_can_use_gemini_for_difficult_query():
+async def test_fallback_lex_intent_does_not_use_gemini_nlu_fallback():
     gemini_client = FakeIntentResolvingGeminiClient()
     service = IntentService(FakeMedusaClient(), gemini_client=gemini_client)
 
@@ -555,9 +639,69 @@ async def test_fallback_lex_intent_can_use_gemini_for_difficult_query():
         make_request("FallbackIntent", {}, text="máy nào hợp mua cho mẹ")
     )
 
-    assert gemini_client.resolve_called is True
-    assert response.session_info.parameters["resolved_intent"] == "product_recommendation"
-    assert response.session_info.parameters["resolution_source"] == "gemini"
+    assert gemini_client.resolve_called is False
+    assert response.session_info.parameters["resolved_intent"] == "fallback"
+    assert response.session_info.parameters["resolution_source"] == "local_nlu"
+
+
+@pytest.mark.asyncio
+async def test_product_recommendation_with_gemini():
+    class CustomFakeMedusaClient:
+        async def list_products(self, query=None, limit=150):
+            return [
+                {
+                    "id": "prod_1",
+                    "title": "iPhone 15 Pro",
+                    "handle": "iphone-15-pro",
+                    "metadata": {
+                        "chip": "A17 Pro",
+                    },
+                    "variants": [
+                        {
+                            "title": "Default",
+                            "calculated_price": {
+                                "calculated_amount": 25000000,
+                                "currency_code": "vnd",
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "prod_2",
+                    "title": "Samsung S24",
+                    "handle": "samsung-s24",
+                    "metadata": {
+                        "chip": "Exynos 2400",
+                    },
+                    "variants": [
+                        {
+                            "title": "Default",
+                            "calculated_price": {
+                                "calculated_amount": 20000000,
+                                "currency_code": "vnd",
+                            }
+                        }
+                    ]
+                }
+            ]
+
+    gemini_client = FakeRecommendationGeminiClient()
+    service = IntentService(CustomFakeMedusaClient(), gemini_client=gemini_client)
+
+    response = await service.handle(
+        make_request("ProductRecommendation", {}, text="máy nào quay phim đẹp")
+    )
+
+    assert gemini_client.recommendation_called is True
+    assert gemini_client.last_user_text == "máy nào quay phim đẹp"
+    assert len(gemini_client.last_products) == 2
+    
+    # Asserting that the recommended product was returned and the message was used
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Đây là gợi ý của Gemini dành cho mẹ của bạn." in message
+    assert "iPhone 15 Pro" in message
+    assert response.session_info.parameters["search_status"] == "recommendation_success"
+
 
 
 @pytest.mark.asyncio
@@ -609,3 +753,364 @@ async def test_gemini_handover_resolution_is_ignored_without_explicit_handoff_te
     assert "sản phẩm" in message
     assert response.session_info.parameters["resolved_intent"] == "fallback"
     assert response.session_info.parameters.get("handover_requested") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("text", "resolved_intent", "search_status"),
+    [
+        ("mua iphone 15 trả góp 12 tháng", "installment", "payment_installment_policy"),
+        ("shop có nhận momo không", "payment_method", "payment_installment_policy"),
+        ("cho tôi xem giỏ hàng", "cart_view", "cart_checkout_guidance"),
+        ("tôi muốn hủy đơn 12345", "order_cancel", "aftercare_handoff"),
+        ("bao giờ tôi được hoàn tiền", "refund_status", "aftercare_handoff"),
+        ("địa chỉ cửa hàng ở đâu", "store_info", "store_info"),
+    ],
+)
+async def test_fallback_uses_new_lex_intent_classifier(text, resolved_intent, search_status):
+    service = IntentService(FakeMedusaClient())
+
+    response = await service.handle(make_request("FallbackIntent", {}, text=text))
+
+    assert response.session_info.parameters["resolved_intent"] == resolved_intent
+    assert response.session_info.parameters["search_status"] == search_status
+
+
+@pytest.mark.asyncio
+async def test_specific_shipping_tracking_intent_is_not_overridden_by_legacy_classifier():
+    service = IntentService(FakeMedusaClient())
+
+    response = await service.handle(
+        make_request("ShippingTrackingIntent", {"order_id": "ORD-1001"}, text="đơn đang giao tới đâu"),
+        authorization_header="Bearer test-token",
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "ORD-1001" in message
+    assert response.session_info.parameters["resolved_intent"] == "shipping_tracking"
+    assert response.session_info.parameters["resolution_source"] == "lex"
+
+
+@pytest.mark.asyncio
+async def test_specific_payment_intent_is_authoritative():
+    service = IntentService(FakeMedusaClient())
+
+    response = await service.handle(
+        make_request("PaymentMethodIntent", {}, text="thanh toán khi nhận hàng được không")
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "COD" in message
+    assert response.session_info.parameters["resolved_intent"] == "payment_method"
+    assert response.session_info.parameters["resolution_source"] == "lex"
+
+
+@pytest.mark.asyncio
+async def test_exact_model_with_missing_qualifier_does_not_fallback_to_base_model():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+    response = await service.handle(
+        make_request("ProductSearchIntent", {}, text="kiếm iphone 16 pro max")
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "iPhone 16" not in message
+    assert "chưa tìm thấy" in message
+    assert response.session_info.parameters["search_status"] == "product_not_found"
+
+
+@pytest.mark.asyncio
+async def test_budget_phone_search_lists_products_under_budget():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+    response = await service.handle(
+        make_request("ProductSearchIntent", {}, text="tìm điện thoại dưới 15 triệu")
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "iPhone 11" in message
+    assert "6.990.000 VNĐ" in message
+    assert "iPhone 16" not in message
+    assert response.session_info.parameters["search_status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_unknown_brand_search_does_not_return_unrelated_recommendations():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+    response = await service.handle(
+        make_request("ProductSearchIntent", {}, text="cho xem máy oppo mới nhất")
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "iPhone" not in message
+    assert "Samsung" not in message
+    assert "chưa tìm thấy" in message
+    assert response.session_info.parameters["search_status"] == "product_not_found"
+
+
+@pytest.mark.asyncio
+async def test_bare_two_digit_text_is_not_treated_as_order_lookup():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+    response = await service.handle(
+        make_request("OrderStatusIntent", {"order_id": "16"}, text="16")
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "cần đăng nhập" not in message
+    assert response.session_info.parameters["search_status"] in {"missing_order_code", "fallback"}
+
+
+@pytest.mark.asyncio
+async def test_generic_price_after_multi_product_search_does_not_reuse_stale_product():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+
+    first = await service.handle(
+        make_request("ProductSearchIntent", {}, text="có samsung dòng s không")
+    )
+    session = first.sessionState.sessionAttributes.copy()
+    assert "Samsung Galaxy S26 Ultra" in first.fulfillment_response.messages[0].text.text[0]
+    assert not session.get("current_product_name")
+
+    second = await service.handle(
+        make_request_with_session("ProductPriceIntent", {}, session, text="báo giá giúp mình")
+    )
+
+    message = second.fulfillment_response.messages[0].text.text[0]
+    assert "Samsung Galaxy S26 Ultra" not in message
+    assert "iPhone" not in message
+    assert second.session_info.parameters["search_status"] in {"product_not_found", "fallback"}
+
+
+@pytest.mark.asyncio
+async def test_product_context_expires_after_two_unrelated_turns():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+
+    first = await service.handle(
+        make_request("ProductPriceIntent", {"product_name": "iPhone 16"}, text="iPhone 16 giá bao nhiêu")
+    )
+    session = first.sessionState.sessionAttributes.copy()
+    assert session["current_product_name"] == "iPhone 16"
+    assert session["product_context_turns_remaining"] == 2
+
+    second = await service.handle(
+        make_request_with_session("FallbackIntent", {}, session, text="ok")
+    )
+    session = second.sessionState.sessionAttributes.copy()
+    assert session["current_product_name"] == "iPhone 16"
+    assert session["product_context_turns_remaining"] == 1
+
+    third = await service.handle(
+        make_request_with_session("FallbackIntent", {}, session, text="vâng")
+    )
+    session = third.sessionState.sessionAttributes.copy()
+    assert session.get("current_product_name") is None
+    assert session.get("history_products") is None
+
+    fourth = await service.handle(
+        make_request_with_session("ProductPriceIntent", {}, session, text="giá bao nhiêu")
+    )
+    message = fourth.fulfillment_response.messages[0].text.text[0]
+    assert "iPhone 16" not in message
+    assert fourth.session_info.parameters["search_status"] in {"product_not_found", "fallback"}
+
+
+@pytest.mark.asyncio
+async def test_order_context_expires_after_two_unrelated_turns():
+    service = IntentService(FakeMedusaClient())
+
+    first = await service.handle(
+        make_request("OrderTracking", {"order_id": "ORD-1001"}, text="kiểm tra đơn ORD-1001"),
+        authorization_header="Bearer test-token",
+    )
+    session = first.sessionState.sessionAttributes.copy()
+    assert session["current_order_code"] == "ORD-1001"
+    assert session["order_context_turns_remaining"] == 2
+
+    second = await service.handle(
+        make_request_with_session("FallbackIntent", {}, session, text="ok")
+    )
+    session = second.sessionState.sessionAttributes.copy()
+    assert session["current_order_code"] == "ORD-1001"
+    assert session["order_context_turns_remaining"] == 1
+
+    third = await service.handle(
+        make_request_with_session("FallbackIntent", {}, session, text="vâng")
+    )
+    session = third.sessionState.sessionAttributes.copy()
+    assert session.get("current_order_code") is None
+
+    fourth = await service.handle(
+        make_request_with_session("OrderStatusIntent", {}, session, text="đơn này đang ở đâu"),
+        authorization_header="Bearer test-token",
+    )
+    message = fourth.fulfillment_response.messages[0].text.text[0]
+    assert "ORD-1001" not in message
+    assert fourth.session_info.parameters["search_status"] == "missing_order_code"
+
+
+@pytest.mark.asyncio
+async def test_recommendation_respects_explicit_budget_range():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "ProductRecommendationIntent",
+            {},
+            text="Shop tư vấn cho mình máy nào tầm 15 đến 20 triệu chơi game mượt và màn hình đẹp với.",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "iPhone 16" in message
+    assert "iPhone 11" not in message
+    assert "iPhone 17" not in message
+
+
+@pytest.mark.asyncio
+async def test_generic_promotion_does_not_reuse_previous_product_context():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+    response = await service.handle(
+        make_request_with_session(
+            "PromotionIntent",
+            {},
+            {"current_product_name": "OPPO Find X8 Pro", "product_context_turns_remaining": 2},
+            text="Hôm nay shop có mã giảm giá hay chương trình khuyến mãi gì cho khách mới không?",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "WELCOME10" in message
+    assert "OPPO Find X8 Pro" not in message
+
+
+@pytest.mark.asyncio
+async def test_installment_policy_does_not_treat_whole_sentence_as_product():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+    response = await service.handle(
+        make_request(
+            "InstallmentIntent",
+            {"product_name": "Mình muốn mua trả góp qua thẻ tín dụng thì lãi suất và cần trả trước"},
+            text="Mình muốn mua trả góp qua thẻ tín dụng thì lãi suất thế nào và cần trả trước bao nhiêu?",
+        )
+    )
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "với Mình muốn" not in message
+    assert "Shop hỗ trợ các phương thức thanh toán:" in message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("intent", "text", "expected"),
+    [
+        ("ProductSpecIntent", "iPhone 17 có hỗ trợ esim không và dùng chip gì thế?", "Apple A19 Pro"),
+        ("ProductCameraIntent", "camera Samsung Galaxy S26 Ultra có đẹp không?", "200MP Zoom 100x"),
+        ("ProductBatteryIntent", "pin Samsung Galaxy S26 Ultra dùng được bao lâu?", "5000mAh"),
+    ],
+)
+async def test_product_advice_returns_technical_data_instead_of_price_table(intent, text, expected):
+    service = IntentService(ExtendedFakeMedusaClient())
+    response = await service.handle(make_request(intent, {}, text=text))
+
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert expected in message
+    assert "Bảng giá" not in message
+
+
+def test_extracts_products_from_long_comparison_sentence():
+    left, right = extract_product_compare_names_from_text(
+        "So sánh giúp mình cấu hình giữa iPhone 16 và Samsung Galaxy S26 Plus cái nào tốt hơn?"
+    )
+
+    assert left == "iPhone 16"
+    assert right == "Samsung Galaxy S26 Plus"
+
+
+@pytest.mark.asyncio
+async def test_order_detail_extraction_and_lookup():
+    service = IntentService(FakeMedusaClient())
+    
+    # 1. Test "chi tiết ord-1001" extracts "ORD-1001" and successfully loads order details
+    response = await service.handle(
+        make_request("FallbackIntent", {}, text="chi tiết ord-1001"),
+        authorization_header="Bearer test-token",
+    )
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Thông tin ORD-1001:" in message
+    assert "599.000" in message
+    assert response.session_info.parameters["current_order_code"] == "ORD-1001"
+
+    # 2. Test "chi tiết đơn hàng 1001" extracts "1001" and loads the order
+    response2 = await service.handle(
+        make_request("FallbackIntent", {}, text="chi tiết đơn hàng 1001"),
+        authorization_header="Bearer test-token",
+    )
+    message2 = response2.fulfillment_response.messages[0].text.text[0]
+    assert "Thông tin ORD-1001:" in message2
+    assert response2.session_info.parameters["current_order_code"] == "ORD-1001"
+
+
+@pytest.mark.asyncio
+async def test_promo_code_direct_routing():
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+    
+    # Test "WELCOME10" is routed directly to bonus/promotions and displays welcome discount details
+    response = await service.handle(
+        make_request("FallbackIntent", {}, text="WELCOME10")
+    )
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "WELCOME10" in message
+    assert "giảm 10%" in message
+    assert response.session_info.parameters["resolved_intent"] == "bonus"
+    
+    # Test "mã giảm giá WELCOME10"
+    response2 = await service.handle(
+        make_request("FallbackIntent", {}, text="mã giảm giá WELCOME10")
+    )
+    message2 = response2.fulfillment_response.messages[0].text.text[0]
+    assert "WELCOME10" in message2
+    assert "giảm 10%" in message2
+
+
+@pytest.mark.asyncio
+async def test_failsafe_fixes_in_intent_service():
+    from app.services.intent_service import is_plausible_product_name
+    
+    # 1. Test is_plausible_product_name
+    assert is_plausible_product_name("ip16") is True
+    assert is_plausible_product_name("iphone 16") is True
+    assert is_plausible_product_name("0") is False
+    assert is_plausible_product_name("0%") is False
+    assert is_plausible_product_name("16") is False
+    assert is_plausible_product_name("va") is False
+    assert is_plausible_product_name(None) is False
+
+    service = IntentService(PhoneCatalogFakeMedusaClient())
+
+    # 2. Test brand fallback in product_price when product is not in catalog (e.g. iPhone 15 Pro Max)
+    response = await service.handle(
+        make_request("ProductPrice", {"product": "iPhone 15 Pro Max"}, text="iPhone 15 Pro Max giá bao nhiêu")
+    )
+    message = response.fulfillment_response.messages[0].text.text[0]
+    assert "Sản phẩm phù hợp" in message
+    assert "iPhone 16" in message
+    assert "iPhone 17" in message
+    assert "iPhone 11" in message
+    assert response.session_info.parameters["search_status"] == "product_list_fallback"
+
+    # 3. Test brand fallback in inventory_status
+    response_inv = await service.handle(
+        make_request("ProductAvailability", {"product": "iPhone 15 Pro Max"}, text="iPhone 15 Pro Max còn hàng không")
+    )
+    message_inv = response_inv.fulfillment_response.messages[0].text.text[0]
+    assert "Sản phẩm phù hợp" in message_inv
+    assert "iPhone 16" in message_inv
+    assert "iPhone 17" in message_inv
+    assert response_inv.session_info.parameters["search_status"] == "product_list_fallback"
+
+    # 4. Test flexible comparison parsing with catalog scanning fallback
+    response_comp = await service.handle(
+        make_request("ProductCompareIntent", {}, text="So sánh giúp mình cấu hình giữa iPhone 16 và Samsung Galaxy S26 Plus cái nào tốt hơn?")
+    )
+    message_comp = response_comp.fulfillment_response.messages[0].text.text[0]
+    assert "So sánh nhanh" in message_comp
+    assert "iPhone 16" in message_comp
+    assert "Samsung Galaxy S26 Plus" in message_comp
+

@@ -1,0 +1,14 @@
+{
+  "name": "OrderId",
+  "identifier": "1OQKDBH6N3",
+  "description": null,
+  "slotTypeValues": null,
+  "parentSlotTypeSignature": "AMAZON.AlphaNumeric",
+  "valueSelectionSetting": {
+    "resolutionStrategy": "ORIGINAL_VALUE",
+    "advancedRecognitionSetting": null,
+    "regexFilter": {
+      "pattern": "[0-9]{4,24}"
+    }
+  }
+}

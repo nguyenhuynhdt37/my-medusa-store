@@ -1,0 +1,55 @@
+{
+  "name": "District",
+  "identifier": "M554OCEV0N",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "q1"
+        }
+      ],
+      "sampleValue": {
+        "value": "Quận 1"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "q7"
+        }
+      ],
+      "sampleValue": {
+        "value": "Quận 7"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "cau giay"
+        }
+      ],
+      "sampleValue": {
+        "value": "Cầu Giấy"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "thu duc"
+        }
+      ],
+      "sampleValue": {
+        "value": "Thủ Đức"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

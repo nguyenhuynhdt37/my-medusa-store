@@ -28,6 +28,16 @@ output "chatbot_url" {
   value       = "https://${var.chatbot_domain}"
 }
 
+output "lex_bot_id" {
+  description = "Amazon Lex V2 bot ID used by the chatbot runtime."
+  value       = var.managed_lex_bot_id
+}
+
+output "lex_bot_alias_id" {
+  description = "Amazon Lex V2 bot alias ID used by the chatbot runtime."
+  value       = coalesce(var.lex_bot_alias_id, "TSTALIASID")
+}
+
 output "ssm_start_session_command" {
   description = "Preferred administrative access command."
   value       = "aws ssm start-session --target ${aws_instance.app.id} --region ${var.aws_region}"

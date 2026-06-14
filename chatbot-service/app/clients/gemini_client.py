@@ -96,6 +96,66 @@ class GeminiClient:
             raise GeminiAPIError(f"Gemini returned invalid intent JSON: {result.text}") from exc
         return parsed if isinstance(parsed, dict) else {}, result.usage_metadata
 
+    async def generate_product_recommendation(
+        self,
+        user_text: str,
+        products: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not self.is_enabled():
+            return {}
+
+        # Prepare products context for Gemini
+        products_context = []
+        for p in products:
+            meta = p.get("metadata") or {}
+            variants = p.get("variants") or []
+            prices = []
+            for variant in variants:
+                calc_price = variant.get("calculated_price")
+                if isinstance(calc_price, dict) and calc_price.get("calculated_amount") is not None:
+                    prices.append(float(calc_price["calculated_amount"]))
+                elif variant.get("prices"):
+                    for vp in variant["prices"]:
+                        if vp.get("amount") is not None:
+                            prices.append(float(vp["amount"]))
+            price_str = f"{int(min(prices)):,} VNĐ" if prices else "Chưa cập nhật"
+            
+            p_desc = (
+                f"- ID: {p.get('id')}\n"
+                f"  Title: {p.get('title')}\n"
+                f"  Price from: {price_str}\n"
+                f"  Chip: {meta.get('chip', 'Chưa cập nhật')}\n"
+                f"  Camera: {meta.get('camera', 'Chưa cập nhật')}\n"
+                f"  Battery: {meta.get('battery', 'Chưa cập nhật')}\n"
+                f"  Rating: {meta.get('rating', 'Chưa cập nhật')}\n"
+                f"  Sold count: {meta.get('sold_count', 'Chưa cập nhật')}\n"
+            )
+            products_context.append(p_desc)
+            
+        products_text = "\n".join(products_context)
+        
+        prompt = (
+            "You are an expert Vietnamese e-commerce shopping assistant.\n"
+            "Based on the user's recommendation request, select up to 4 most relevant products from the catalog list below.\n"
+            "Format the recommendation explanation in Vietnamese with clear spacing and bullet points. Mention key features matching the user's needs.\n\n"
+            "### Catalog List:\n"
+            f"{products_text}\n\n"
+            "### User Request:\n"
+            f"\"{user_text}\"\n\n"
+            "Return exactly this JSON format:\n"
+            "{\n"
+            "  \"recommended_product_ids\": [\"prod_id1\", \"prod_id2\"],\n"
+            "  \"recommendation_message\": \"Friendly explanation in Vietnamese...\"\n"
+            "}"
+        )
+        
+        data = await self._generate_text(prompt, response_mime_type="application/json", max_output_tokens=1000)
+        try:
+            parsed = json.loads(strip_json_code_fence(data))
+        except Exception:
+            parsed = {}
+        return parsed
+
     async def _generate_text(
         self,
         prompt: str,

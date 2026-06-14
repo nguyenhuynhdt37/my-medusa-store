@@ -137,17 +137,17 @@ class LexV2Request(BaseModel):
         return parameters
 
     def get_parameter(self, names: list[str]) -> str | None:
-        # Check sessionAttributes first
-        session_attributes = self.session_state.get("sessionAttributes") or {}
-        for name in names:
-            if name in session_attributes and session_attributes[name] is not None:
-                return str(session_attributes[name]).strip()
-
-        # Check slots (intent parameters)
+        # Check slots (intent parameters) first
         slots = self.slot_parameters()
         for name in names:
             if name in slots and slots[name] is not None:
                 return str(slots[name]).strip()
+
+        # Check sessionAttributes
+        session_attributes = self.session_state.get("sessionAttributes") or {}
+        for name in names:
+            if name in session_attributes and session_attributes[name] is not None:
+                return str(session_attributes[name]).strip()
 
         return None
 

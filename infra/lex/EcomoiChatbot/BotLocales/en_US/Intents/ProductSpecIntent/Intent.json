@@ -1,0 +1,328 @@
+{
+  "name": "ProductSpecIntent",
+  "identifier": "VXLB58287T",
+  "displayName": null,
+  "description": "Hỏi cấu hình, RAM, chip, màn hình",
+  "parentIntentSignature": null,
+  "sampleUtterances": [
+    {
+      "utterance": "cấu hình {product_name}"
+    },
+    {
+      "utterance": "cau hinh {product_name}"
+    },
+    {
+      "utterance": "{product_name} ram bao nhiêu"
+    },
+    {
+      "utterance": "{product_name} ram bao nhieu"
+    },
+    {
+      "utterance": "{product_name} dùng chip gì"
+    },
+    {
+      "utterance": "{product_name} dung chip gi"
+    },
+    {
+      "utterance": "màn hình {product_name} thế nào"
+    },
+    {
+      "utterance": "man hinh {product_name} the nao"
+    },
+    {
+      "utterance": "thông số {product_name}"
+    },
+    {
+      "utterance": "thong so {product_name}"
+    },
+    {
+      "utterance": "có hỗ trợ esim không"
+    },
+    {
+      "utterance": "co ho tro esim khong"
+    },
+    {
+      "utterance": "cấu hình máy này thế nào"
+    },
+    {
+      "utterance": "cau hinh may nay the nao"
+    },
+    {
+      "utterance": "ram bao nhiêu vậy"
+    },
+    {
+      "utterance": "ram bao nhieu vay"
+    },
+    {
+      "utterance": "dùng chip gì"
+    },
+    {
+      "utterance": "dung chip gi"
+    },
+    {
+      "utterance": "màn hình bao nhiêu hz"
+    },
+    {
+      "utterance": "man hinh bao nhieu hz"
+    },
+    {
+      "utterance": "cấu hình {product_name} giúp mình"
+    },
+    {
+      "utterance": "cau hinh {product_name} giúp mình"
+    },
+    {
+      "utterance": "{product_name} ram bao nhiêu giúp mình"
+    },
+    {
+      "utterance": "{product_name} ram bao nhieu giúp mình"
+    },
+    {
+      "utterance": "{product_name} dùng chip gì giúp mình"
+    },
+    {
+      "utterance": "{product_name} dung chip gi giúp mình"
+    },
+    {
+      "utterance": "màn hình {product_name} thế nào giúp mình"
+    },
+    {
+      "utterance": "man hinh {product_name} the nao giúp mình"
+    },
+    {
+      "utterance": "thông số {product_name} giúp mình"
+    },
+    {
+      "utterance": "thong so {product_name} giúp mình"
+    },
+    {
+      "utterance": "có hỗ trợ esim không giúp mình"
+    },
+    {
+      "utterance": "co ho tro esim khong giúp mình"
+    },
+    {
+      "utterance": "cấu hình máy này thế nào giúp mình"
+    },
+    {
+      "utterance": "cau hinh may nay the nao giúp mình"
+    },
+    {
+      "utterance": "ram bao nhiêu vậy giúp mình"
+    },
+    {
+      "utterance": "ram bao nhieu vay giúp mình"
+    },
+    {
+      "utterance": "dùng chip gì giúp mình"
+    },
+    {
+      "utterance": "dung chip gi giúp mình"
+    },
+    {
+      "utterance": "màn hình bao nhiêu hz giúp mình"
+    },
+    {
+      "utterance": "man hinh bao nhieu hz giúp mình"
+    },
+    {
+      "utterance": "cấu hình {product_name} giup minh"
+    },
+    {
+      "utterance": "cau hinh {product_name} giup minh"
+    },
+    {
+      "utterance": "{product_name} ram bao nhiêu giup minh"
+    },
+    {
+      "utterance": "{product_name} ram bao nhieu giup minh"
+    },
+    {
+      "utterance": "{product_name} dùng chip gì giup minh"
+    },
+    {
+      "utterance": "{product_name} dung chip gi giup minh"
+    },
+    {
+      "utterance": "màn hình {product_name} thế nào giup minh"
+    },
+    {
+      "utterance": "man hinh {product_name} the nao giup minh"
+    },
+    {
+      "utterance": "thông số {product_name} giup minh"
+    },
+    {
+      "utterance": "thong so {product_name} giup minh"
+    },
+    {
+      "utterance": "có hỗ trợ esim không giup minh"
+    },
+    {
+      "utterance": "co ho tro esim khong giup minh"
+    },
+    {
+      "utterance": "cấu hình máy này thế nào giup minh"
+    },
+    {
+      "utterance": "cau hinh may nay the nao giup minh"
+    },
+    {
+      "utterance": "ram bao nhiêu vậy giup minh"
+    },
+    {
+      "utterance": "ram bao nhieu vay giup minh"
+    },
+    {
+      "utterance": "dùng chip gì giup minh"
+    },
+    {
+      "utterance": "dung chip gi giup minh"
+    },
+    {
+      "utterance": "màn hình bao nhiêu hz giup minh"
+    },
+    {
+      "utterance": "man hinh bao nhieu hz giup minh"
+    }
+  ],
+  "intentConfirmationSetting": null,
+  "intentClosingSetting": null,
+  "initialResponseSetting": {
+    "conditional": null,
+    "codeHook": {
+      "isActive": true,
+      "enableCodeHookInvocation": true,
+      "invocationLabel": null,
+      "postCodeHookSpecification": {
+        "failureResponse": null,
+        "failureNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "failureConditional": null,
+        "successResponse": null,
+        "successNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "FulfillIntent",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "successConditional": null,
+        "timeoutResponse": null,
+        "timeoutNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "timeoutConditional": null
+      }
+    },
+    "nextStep": {
+      "sessionAttributes": null,
+      "dialogAction": {
+        "type": "InvokeDialogCodeHook",
+        "slotToElicit": null,
+        "suppressNextMessage": null,
+        "intentsInScope": null
+      },
+      "intent": {
+        "name": null,
+        "slots": null
+      }
+    },
+    "initialResponse": null
+  },
+  "inputContexts": null,
+  "outputContexts": null,
+  "kendraConfiguration": null,
+  "qnAIntentConfiguration": null,
+  "bedrockAgentIntentConfiguration": null,
+  "qInConnectIntentConfiguration": null,
+  "dialogCodeHook": {
+    "enabled": true
+  },
+  "fulfillmentCodeHook": {
+    "isActive": true,
+    "postFulfillmentStatusSpecification": {
+      "failureResponse": null,
+      "failureNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "successResponse": null,
+      "successNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "timeoutResponse": null,
+      "timeoutNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      }
+    },
+    "fulfillmentUpdatesSpecification": null,
+    "enabled": true
+  },
+  "slotPriorities": [
+    {
+      "priority": 1,
+      "slotName": "product_name"
+    },
+    {
+      "priority": 2,
+      "slotName": "ram"
+    }
+  ]
+}

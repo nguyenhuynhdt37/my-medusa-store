@@ -1,1 +1,319 @@
-{"name": "HumanHandoffIntent", "identifier": "IYDYPYZHDB", "displayName": null, "description": "chuyển tư vấn viên.", "parentIntentSignature": null, "sampleUtterances": [{"utterance": "gặp nhân viên"}, {"utterance": "cho tôi gặp tư vấn viên"}, {"utterance": "nói chuyện với người thật"}, {"utterance": "tôi cần hỗ trợ trực tiếp"}, {"utterance": "gọi nhân viên giúp tôi"}, {"utterance": "chuyển cho sale"}, {"utterance": "gặp người thật"}, {"utterance": "gap nguoi that"}, {"utterance": "gặp tư vấn viên"}, {"utterance": "cho mình nói chuyện với ad"}, {"utterance": "cho minh gap tu van vien"}, {"utterance": "chat với nhân viên"}, {"utterance": "nhân viên hỗ trợ"}, {"utterance": "nhan vien ho tro"}, {"utterance": "chuyển máy cho tư vấn viên"}, {"utterance": "chuyen may cho tu van vien"}, {"utterance": "tôi muốn nói chuyện với nhân viên"}, {"utterance": "ket noi tu van vien"}, {"utterance": "gặp hỗ trợ viên"}, {"utterance": "gap ho tro vien"}, {"utterance": "hỗ trợ trực tuyến"}, {"utterance": "gọi hotline"}, {"utterance": "gọi người hỗ trợ"}, {"utterance": "chat voi nguoi that"}, {"utterance": "đây là bot à phiền quá chuyển cho người thật đi"}, {"utterance": "day la bot ak chuyen nguoi di"}, {"utterance": "cho gặp quản lý"}, {"utterance": "cho gap quan ly"}, {"utterance": "tắt bot đi"}, {"utterance": "tat bot di"}, {"utterance": "gọi nhân viên hỗ trợ gấp"}, {"utterance": "tôi muốn nói chuyện với nhân sự thật"}, {"utterance": "sale đâu rồi"}, {"utterance": "ad rep ib mình chứ bot trả lời ngu quá"}, {"utterance": "chuyển người"}], "intentConfirmationSetting": null, "intentClosingSetting": null, "initialResponseSetting": {"conditional": null, "codeHook": {"isActive": true, "enableCodeHookInvocation": true, "invocationLabel": null, "postCodeHookSpecification": {"failureResponse": null, "failureNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "failureConditional": null, "successResponse": null, "successNextStep": {"sessionAttributes": null, "dialogAction": {"type": "FulfillIntent", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "successConditional": null, "timeoutResponse": null, "timeoutNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "timeoutConditional": null}}, "nextStep": {"sessionAttributes": null, "dialogAction": {"type": "InvokeDialogCodeHook", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "initialResponse": null}, "inputContexts": null, "outputContexts": null, "kendraConfiguration": null, "qnAIntentConfiguration": null, "bedrockAgentIntentConfiguration": null, "qInConnectIntentConfiguration": null, "dialogCodeHook": {"enabled": true}, "fulfillmentCodeHook": {"isActive": true, "postFulfillmentStatusSpecification": {"failureResponse": null, "failureNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "successResponse": null, "successNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "timeoutResponse": null, "timeoutNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}}, "fulfillmentUpdatesSpecification": null, "enabled": true}, "slotPriorities": []}
+{
+  "name": "HumanHandoffIntent",
+  "identifier": "2YKRB3UILW",
+  "displayName": null,
+  "description": "Chuyển nhân viên",
+  "parentIntentSignature": null,
+  "sampleUtterances": [
+    {
+      "utterance": "gặp nhân viên"
+    },
+    {
+      "utterance": "gap nhan vien"
+    },
+    {
+      "utterance": "nói chuyện với người thật"
+    },
+    {
+      "utterance": "noi chuyen voi nguoi that"
+    },
+    {
+      "utterance": "cho gặp tư vấn viên"
+    },
+    {
+      "utterance": "cho gap tu van vien"
+    },
+    {
+      "utterance": "cần người hỗ trợ"
+    },
+    {
+      "utterance": "can nguoi ho tro"
+    },
+    {
+      "utterance": "chuyển tổng đài"
+    },
+    {
+      "utterance": "chuyen tong dai"
+    },
+    {
+      "utterance": "cần hỗ trợ trực tiếp"
+    },
+    {
+      "utterance": "can ho tro truc tiep"
+    },
+    {
+      "utterance": "gặp CSKH"
+    },
+    {
+      "utterance": "gap CSKH"
+    },
+    {
+      "utterance": "cho gặp nhân viên"
+    },
+    {
+      "utterance": "cho gap nhan vien"
+    },
+    {
+      "utterance": "chuyển mình sang tư vấn viên"
+    },
+    {
+      "utterance": "chuyen minh sang tu van vien"
+    },
+    {
+      "utterance": "gặp nhân viên giúp mình"
+    },
+    {
+      "utterance": "gap nhan vien giúp mình"
+    },
+    {
+      "utterance": "nói chuyện với người thật giúp mình"
+    },
+    {
+      "utterance": "noi chuyen voi nguoi that giúp mình"
+    },
+    {
+      "utterance": "cho gặp tư vấn viên giúp mình"
+    },
+    {
+      "utterance": "cho gap tu van vien giúp mình"
+    },
+    {
+      "utterance": "cần người hỗ trợ giúp mình"
+    },
+    {
+      "utterance": "can nguoi ho tro giúp mình"
+    },
+    {
+      "utterance": "chuyển tổng đài giúp mình"
+    },
+    {
+      "utterance": "chuyen tong dai giúp mình"
+    },
+    {
+      "utterance": "cần hỗ trợ trực tiếp giúp mình"
+    },
+    {
+      "utterance": "can ho tro truc tiep giúp mình"
+    },
+    {
+      "utterance": "gặp CSKH giúp mình"
+    },
+    {
+      "utterance": "gap CSKH giúp mình"
+    },
+    {
+      "utterance": "cho gặp nhân viên giúp mình"
+    },
+    {
+      "utterance": "cho gap nhan vien giúp mình"
+    },
+    {
+      "utterance": "chuyển mình sang tư vấn viên giúp mình"
+    },
+    {
+      "utterance": "chuyen minh sang tu van vien giúp mình"
+    },
+    {
+      "utterance": "gặp nhân viên giup minh"
+    },
+    {
+      "utterance": "gap nhan vien giup minh"
+    },
+    {
+      "utterance": "nói chuyện với người thật giup minh"
+    },
+    {
+      "utterance": "noi chuyen voi nguoi that giup minh"
+    },
+    {
+      "utterance": "cho gặp tư vấn viên giup minh"
+    },
+    {
+      "utterance": "cho gap tu van vien giup minh"
+    },
+    {
+      "utterance": "cần người hỗ trợ giup minh"
+    },
+    {
+      "utterance": "can nguoi ho tro giup minh"
+    },
+    {
+      "utterance": "chuyển tổng đài giup minh"
+    },
+    {
+      "utterance": "chuyen tong dai giup minh"
+    },
+    {
+      "utterance": "cần hỗ trợ trực tiếp giup minh"
+    },
+    {
+      "utterance": "can ho tro truc tiep giup minh"
+    },
+    {
+      "utterance": "gặp CSKH giup minh"
+    },
+    {
+      "utterance": "gap CSKH giup minh"
+    },
+    {
+      "utterance": "cho gặp nhân viên giup minh"
+    },
+    {
+      "utterance": "cho gap nhan vien giup minh"
+    },
+    {
+      "utterance": "chuyển mình sang tư vấn viên giup minh"
+    },
+    {
+      "utterance": "chuyen minh sang tu van vien giup minh"
+    },
+    {
+      "utterance": "gặp nhân viên với shop"
+    },
+    {
+      "utterance": "gap nhan vien với shop"
+    },
+    {
+      "utterance": "nói chuyện với người thật với shop"
+    },
+    {
+      "utterance": "noi chuyen voi nguoi that với shop"
+    },
+    {
+      "utterance": "cho gặp tư vấn viên với shop"
+    },
+    {
+      "utterance": "cho gap tu van vien với shop"
+    }
+  ],
+  "intentConfirmationSetting": null,
+  "intentClosingSetting": null,
+  "initialResponseSetting": {
+    "conditional": null,
+    "codeHook": {
+      "isActive": true,
+      "enableCodeHookInvocation": true,
+      "invocationLabel": null,
+      "postCodeHookSpecification": {
+        "failureResponse": null,
+        "failureNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "failureConditional": null,
+        "successResponse": null,
+        "successNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "FulfillIntent",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "successConditional": null,
+        "timeoutResponse": null,
+        "timeoutNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "timeoutConditional": null
+      }
+    },
+    "nextStep": {
+      "sessionAttributes": null,
+      "dialogAction": {
+        "type": "InvokeDialogCodeHook",
+        "slotToElicit": null,
+        "suppressNextMessage": null,
+        "intentsInScope": null
+      },
+      "intent": {
+        "name": null,
+        "slots": null
+      }
+    },
+    "initialResponse": null
+  },
+  "inputContexts": null,
+  "outputContexts": null,
+  "kendraConfiguration": null,
+  "qnAIntentConfiguration": null,
+  "bedrockAgentIntentConfiguration": null,
+  "qInConnectIntentConfiguration": null,
+  "dialogCodeHook": {
+    "enabled": true
+  },
+  "fulfillmentCodeHook": {
+    "isActive": true,
+    "postFulfillmentStatusSpecification": {
+      "failureResponse": null,
+      "failureNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "successResponse": null,
+      "successNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "timeoutResponse": null,
+      "timeoutNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      }
+    },
+    "fulfillmentUpdatesSpecification": null,
+    "enabled": true
+  },
+  "slotPriorities": null
+}

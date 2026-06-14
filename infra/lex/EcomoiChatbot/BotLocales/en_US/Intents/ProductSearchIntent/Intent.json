@@ -1,1 +1,336 @@
-{"name": "ProductSearchIntent", "identifier": "F8FOLL9Y78", "displayName": null, "description": "tìm sản phẩm theo tên, hãng, hoặc nhu cầu.", "parentIntentSignature": null, "sampleUtterances": [{"utterance": "tìm {product_name}"}, {"utterance": "cửa hàng có {product_name} không"}, {"utterance": "cho tôi xem {product_name}"}, {"utterance": "có điện thoại {brand} không"}, {"utterance": "tôi muốn mua điện thoại {brand}"}, {"utterance": "gợi ý điện thoại để {need}"}, {"utterance": "có máy nào {need} không"}, {"utterance": "tìm điện thoại tầm {budget}"}, {"utterance": "điện thoại {brand} tầm {budget}"}, {"utterance": "cho xem các mẫu mới nhất"}, {"utterance": "có điện thoại gập nào không"}, {"utterance": "tìm điện thoại {brand}"}, {"utterance": "tim dien thoai {brand}"}, {"utterance": "mình muốn tìm {product_name}"}, {"utterance": "minh muon tim {product_name}"}, {"utterance": "shop có bán {product_name} không"}, {"utterance": "shop co ban {product_name} khong"}, {"utterance": "tư vấn cho mình điện thoại {brand}"}, {"utterance": "tu van cho minh dien thoai {brand}"}, {"utterance": "kiếm cho mình máy {need}"}, {"utterance": "kiem cho minh may {need}"}, {"utterance": "điện thoại {need} tốt nhất"}, {"utterance": "dien thoai {need} tot nhat"}, {"utterance": "tầm giá {budget} mua máy nào"}, {"utterance": "tam gia {budget} mua may nao"}, {"utterance": "cho mình xem mẫu {product_name}"}, {"utterance": "cho minh xem mau {product_name}"}, {"utterance": "có {product_name} ko shop"}, {"utterance": "co {product_name} ko shop"}, {"utterance": "máy nào ngon tầm {budget}"}, {"utterance": "may nao ngon tam {budget}"}, {"utterance": "điện thoại {brand} nào pin trâu nhất"}, {"utterance": "dien thoai {brand} nao pin trau nhat"}, {"utterance": "muốn mua máy {need} tầm {budget}"}, {"utterance": "muon mua may {need} tam {budget}"}, {"utterance": "tư vấn máy chơi game mượt tầm {budget}"}, {"utterance": "có máy {brand} nào chụp ảnh đẹp ko"}, {"utterance": "co may {brand} nao chup anh dep ko"}, {"utterance": "máy nào mới ra mắt năm nay"}, {"utterance": "có dòng máy gập nào của {brand} không"}, {"utterance": "mua trả góp {product_name} thì làm thế nào"}, {"utterance": "mua tra gop {product_name} thi lam the nao"}], "intentConfirmationSetting": null, "intentClosingSetting": null, "initialResponseSetting": {"conditional": null, "codeHook": {"isActive": true, "enableCodeHookInvocation": true, "invocationLabel": null, "postCodeHookSpecification": {"failureResponse": null, "failureNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "failureConditional": null, "successResponse": null, "successNextStep": {"sessionAttributes": null, "dialogAction": {"type": "FulfillIntent", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "successConditional": null, "timeoutResponse": null, "timeoutNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "timeoutConditional": null}}, "nextStep": {"sessionAttributes": null, "dialogAction": {"type": "InvokeDialogCodeHook", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "initialResponse": null}, "inputContexts": null, "outputContexts": null, "kendraConfiguration": null, "qnAIntentConfiguration": null, "bedrockAgentIntentConfiguration": null, "qInConnectIntentConfiguration": null, "dialogCodeHook": {"enabled": true}, "fulfillmentCodeHook": {"isActive": true, "postFulfillmentStatusSpecification": {"failureResponse": null, "failureNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "successResponse": null, "successNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}, "timeoutResponse": null, "timeoutNextStep": {"sessionAttributes": null, "dialogAction": {"type": "EndConversation", "slotToElicit": null, "suppressNextMessage": null, "intentsInScope": null}, "intent": {"name": null, "slots": null}}}, "fulfillmentUpdatesSpecification": null, "enabled": true}, "slotPriorities": [{"priority": 3, "slotName": "need"}, {"priority": 2, "slotName": "brand"}, {"priority": 4, "slotName": "budget"}, {"priority": 1, "slotName": "product_name"}]}
+{
+  "name": "ProductSearchIntent",
+  "identifier": "WOL9Y9DNM9",
+  "displayName": null,
+  "description": "Tìm điện thoại theo tên, hãng, nhu cầu, ngân sách",
+  "parentIntentSignature": null,
+  "sampleUtterances": [
+    {
+      "utterance": "tìm {product_name}"
+    },
+    {
+      "utterance": "tim {product_name}"
+    },
+    {
+      "utterance": "có điện thoại {brand} không"
+    },
+    {
+      "utterance": "co dien thoai {brand} khong"
+    },
+    {
+      "utterance": "tìm máy {need}"
+    },
+    {
+      "utterance": "tim may {need}"
+    },
+    {
+      "utterance": "điện thoại tầm {budget}"
+    },
+    {
+      "utterance": "dien thoai tam {budget}"
+    },
+    {
+      "utterance": "shop có bán {product_name} không"
+    },
+    {
+      "utterance": "shop co ban {product_name} khong"
+    },
+    {
+      "utterance": "shop có {product_name} không"
+    },
+    {
+      "utterance": "shop co {product_name} khong"
+    },
+    {
+      "utterance": "kiếm iphone 16 pro max"
+    },
+    {
+      "utterance": "kiem iphone 16 pro max"
+    },
+    {
+      "utterance": "cho xem máy oppo mới nhất"
+    },
+    {
+      "utterance": "cho xem may oppo moi nhat"
+    },
+    {
+      "utterance": "shop bán xiaomi nào ngon"
+    },
+    {
+      "utterance": "shop ban xiaomi nao ngon"
+    },
+    {
+      "utterance": "còn điện thoại nào tầm 10 củ không"
+    },
+    {
+      "utterance": "con dien thoai nao tam 10 cu khong"
+    },
+    {
+      "utterance": "có samsung dòng s không"
+    },
+    {
+      "utterance": "co samsung dong s khong"
+    },
+    {
+      "utterance": "tìm điện thoại dưới 15 triệu"
+    },
+    {
+      "utterance": "tim dien thoai duoi 15 trieu"
+    },
+    {
+      "utterance": "tìm {product_name} giúp mình"
+    },
+    {
+      "utterance": "tim {product_name} giúp mình"
+    },
+    {
+      "utterance": "có điện thoại {brand} không giúp mình"
+    },
+    {
+      "utterance": "co dien thoai {brand} khong giúp mình"
+    },
+    {
+      "utterance": "tìm máy {need} giúp mình"
+    },
+    {
+      "utterance": "tim may {need} giúp mình"
+    },
+    {
+      "utterance": "điện thoại tầm {budget} giúp mình"
+    },
+    {
+      "utterance": "dien thoai tam {budget} giúp mình"
+    },
+    {
+      "utterance": "shop có bán {product_name} không giúp mình"
+    },
+    {
+      "utterance": "shop co ban {product_name} khong giúp mình"
+    },
+    {
+      "utterance": "shop có {product_name} không giúp mình"
+    },
+    {
+      "utterance": "shop co {product_name} khong giúp mình"
+    },
+    {
+      "utterance": "kiếm iphone 16 pro max giúp mình"
+    },
+    {
+      "utterance": "kiem iphone 16 pro max giúp mình"
+    },
+    {
+      "utterance": "cho xem máy oppo mới nhất giúp mình"
+    },
+    {
+      "utterance": "cho xem may oppo moi nhat giúp mình"
+    },
+    {
+      "utterance": "shop bán xiaomi nào ngon giúp mình"
+    },
+    {
+      "utterance": "shop ban xiaomi nao ngon giúp mình"
+    },
+    {
+      "utterance": "còn điện thoại nào tầm 10 củ không giúp mình"
+    },
+    {
+      "utterance": "con dien thoai nao tam 10 cu khong giúp mình"
+    },
+    {
+      "utterance": "có samsung dòng s không giúp mình"
+    },
+    {
+      "utterance": "co samsung dong s khong giúp mình"
+    },
+    {
+      "utterance": "tìm điện thoại dưới 15 triệu giúp mình"
+    },
+    {
+      "utterance": "tim dien thoai duoi 15 trieu giúp mình"
+    },
+    {
+      "utterance": "tìm {product_name} giup minh"
+    },
+    {
+      "utterance": "tim {product_name} giup minh"
+    },
+    {
+      "utterance": "có điện thoại {brand} không giup minh"
+    },
+    {
+      "utterance": "co dien thoai {brand} khong giup minh"
+    },
+    {
+      "utterance": "tìm máy {need} giup minh"
+    },
+    {
+      "utterance": "tim may {need} giup minh"
+    },
+    {
+      "utterance": "điện thoại tầm {budget} giup minh"
+    },
+    {
+      "utterance": "dien thoai tam {budget} giup minh"
+    },
+    {
+      "utterance": "shop có bán {product_name} không giup minh"
+    },
+    {
+      "utterance": "shop co ban {product_name} khong giup minh"
+    },
+    {
+      "utterance": "shop có {product_name} không giup minh"
+    },
+    {
+      "utterance": "shop co {product_name} khong giup minh"
+    }
+  ],
+  "intentConfirmationSetting": null,
+  "intentClosingSetting": null,
+  "initialResponseSetting": {
+    "conditional": null,
+    "codeHook": {
+      "isActive": true,
+      "enableCodeHookInvocation": true,
+      "invocationLabel": null,
+      "postCodeHookSpecification": {
+        "failureResponse": null,
+        "failureNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "failureConditional": null,
+        "successResponse": null,
+        "successNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "FulfillIntent",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "successConditional": null,
+        "timeoutResponse": null,
+        "timeoutNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "timeoutConditional": null
+      }
+    },
+    "nextStep": {
+      "sessionAttributes": null,
+      "dialogAction": {
+        "type": "InvokeDialogCodeHook",
+        "slotToElicit": null,
+        "suppressNextMessage": null,
+        "intentsInScope": null
+      },
+      "intent": {
+        "name": null,
+        "slots": null
+      }
+    },
+    "initialResponse": null
+  },
+  "inputContexts": null,
+  "outputContexts": null,
+  "kendraConfiguration": null,
+  "qnAIntentConfiguration": null,
+  "bedrockAgentIntentConfiguration": null,
+  "qInConnectIntentConfiguration": null,
+  "dialogCodeHook": {
+    "enabled": true
+  },
+  "fulfillmentCodeHook": {
+    "isActive": true,
+    "postFulfillmentStatusSpecification": {
+      "failureResponse": null,
+      "failureNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "successResponse": null,
+      "successNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "timeoutResponse": null,
+      "timeoutNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      }
+    },
+    "fulfillmentUpdatesSpecification": null,
+    "enabled": true
+  },
+  "slotPriorities": [
+    {
+      "priority": 1,
+      "slotName": "product_name"
+    },
+    {
+      "priority": 2,
+      "slotName": "brand"
+    },
+    {
+      "priority": 3,
+      "slotName": "need"
+    },
+    {
+      "priority": 4,
+      "slotName": "budget"
+    }
+  ]
+}

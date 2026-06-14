@@ -1,111 +1,189 @@
 {
   "name": "OrderStatusIntent",
-  "identifier": "PJF4HZKAKB",
+  "identifier": "SGIFYE2R8Z",
   "displayName": null,
-  "description": "hỏi trạng thái đơn hàng.",
+  "description": "Tra trạng thái đơn hàng",
   "parentIntentSignature": null,
   "sampleUtterances": [
     {
-      "utterance": "kiểm tra đơn hàng {order_id}"
+      "utterance": "đơn hàng của tôi đang ở đâu"
     },
     {
-      "utterance": "đơn {order_id} tới đâu rồi"
+      "utterance": "don hang cua toi dang o dau"
     },
     {
-      "utterance": "trạng thái đơn hàng của tôi"
+      "utterance": "kiểm tra đơn {order_id}"
     },
     {
-      "utterance": "tôi muốn xem đơn hàng"
+      "utterance": "kiem tra don {order_id}"
     },
     {
-      "utterance": "đơn hàng đã giao chưa"
+      "utterance": "đơn em tới đâu rồi"
     },
     {
-      "utterance": "tra cứu đơn hàng {order_id}"
+      "utterance": "don em toi dau roi"
     },
     {
-      "utterance": "đơn hàng của tôi {order_id}"
+      "utterance": "ad check dùm đơn hàng"
     },
     {
-      "utterance": "don hang cua toi {order_id}"
+      "utterance": "ad check dum don hang"
     },
     {
-      "utterance": "check giùm mình đơn {order_id}"
+      "utterance": "sao đơn hàng lâu vậy"
     },
     {
-      "utterance": "check gium minh don {order_id}"
+      "utterance": "sao don hang lau vay"
     },
     {
-      "utterance": "xem đơn {order_id}"
+      "utterance": "hàng giao chưa"
     },
     {
-      "utterance": "đơn {order_id} giao chưa"
+      "utterance": "hang giao chua"
     },
     {
-      "utterance": "don {order_id} giao chua"
+      "utterance": "đơn đang xử lý à"
     },
     {
-      "utterance": "kiểm tra mã đơn {order_id}"
+      "utterance": "don dang xu ly a"
     },
     {
-      "utterance": "kiem tra ma don {order_id}"
+      "utterance": "bao giờ nhận được hàng"
     },
     {
-      "utterance": "đơn hàng của mình đang ở đâu"
+      "utterance": "bao gio nhan duoc hang"
     },
     {
-      "utterance": "don hang cua minh dang o dau"
+      "utterance": "đơn của mình tới đâu rồi"
     },
     {
-      "utterance": "khi nào nhận được hàng"
+      "utterance": "don cua minh toi dau roi"
     },
     {
-      "utterance": "khi nao nhan duoc hang"
+      "utterance": "check đơn giúp mình"
     },
     {
-      "utterance": "sao đơn {order_id} chưa giao"
+      "utterance": "check don giup minh"
     },
     {
-      "utterance": "sao don {order_id} chua giao"
+      "utterance": "đơn hàng của tôi đang ở đâu giúp mình"
     },
     {
-      "utterance": "đơn của mình {order_id} thế nào rồi"
+      "utterance": "don hang cua toi dang o dau giúp mình"
     },
     {
-      "utterance": "tra mã đơn {order_id}"
+      "utterance": "kiểm tra đơn {order_id} giúp mình"
     },
     {
-      "utterance": "sao lâu nhận được hàng thế shop"
+      "utterance": "kiem tra don {order_id} giúp mình"
     },
     {
-      "utterance": "sao lau nhan duoc hang the shop"
+      "utterance": "đơn em tới đâu rồi giúp mình"
     },
     {
-      "utterance": "đơn {order_id} của mình bị trễ rồi"
+      "utterance": "don em toi dau roi giúp mình"
     },
     {
-      "utterance": "hủy đơn {order_id} cho mình"
+      "utterance": "ad check dùm đơn hàng giúp mình"
     },
     {
-      "utterance": "huy don {order_id} cho minh"
+      "utterance": "ad check dum don hang giúp mình"
     },
     {
-      "utterance": "mình có được đồng kiểm khi nhận hàng ko"
+      "utterance": "sao đơn hàng lâu vậy giúp mình"
     },
     {
-      "utterance": "co duoc xem hang truoc khi thanh toan ko"
+      "utterance": "sao don hang lau vay giúp mình"
     },
     {
-      "utterance": "giao hoả tốc {order_id} được không"
+      "utterance": "hàng giao chưa giúp mình"
     },
     {
-      "utterance": "giao hoa toc {order_id} duoc khong"
+      "utterance": "hang giao chua giúp mình"
     },
     {
-      "utterance": "đơn {order_id} đi tới tỉnh nào rồi"
+      "utterance": "đơn đang xử lý à giúp mình"
     },
     {
-      "utterance": "bom hàng đơn {order_id}"
+      "utterance": "don dang xu ly a giúp mình"
+    },
+    {
+      "utterance": "bao giờ nhận được hàng giúp mình"
+    },
+    {
+      "utterance": "bao gio nhan duoc hang giúp mình"
+    },
+    {
+      "utterance": "đơn của mình tới đâu rồi giúp mình"
+    },
+    {
+      "utterance": "don cua minh toi dau roi giúp mình"
+    },
+    {
+      "utterance": "check đơn giúp mình giúp mình"
+    },
+    {
+      "utterance": "check don giup minh giúp mình"
+    },
+    {
+      "utterance": "đơn hàng của tôi đang ở đâu giup minh"
+    },
+    {
+      "utterance": "don hang cua toi dang o dau giup minh"
+    },
+    {
+      "utterance": "kiểm tra đơn {order_id} giup minh"
+    },
+    {
+      "utterance": "kiem tra don {order_id} giup minh"
+    },
+    {
+      "utterance": "đơn em tới đâu rồi giup minh"
+    },
+    {
+      "utterance": "don em toi dau roi giup minh"
+    },
+    {
+      "utterance": "ad check dùm đơn hàng giup minh"
+    },
+    {
+      "utterance": "ad check dum don hang giup minh"
+    },
+    {
+      "utterance": "sao đơn hàng lâu vậy giup minh"
+    },
+    {
+      "utterance": "sao don hang lau vay giup minh"
+    },
+    {
+      "utterance": "hàng giao chưa giup minh"
+    },
+    {
+      "utterance": "hang giao chua giup minh"
+    },
+    {
+      "utterance": "đơn đang xử lý à giup minh"
+    },
+    {
+      "utterance": "don dang xu ly a giup minh"
+    },
+    {
+      "utterance": "bao giờ nhận được hàng giup minh"
+    },
+    {
+      "utterance": "bao gio nhan duoc hang giup minh"
+    },
+    {
+      "utterance": "đơn của mình tới đâu rồi giup minh"
+    },
+    {
+      "utterance": "don cua minh toi dau roi giup minh"
+    },
+    {
+      "utterance": "check đơn giúp mình giup minh"
+    },
+    {
+      "utterance": "check don giup minh giup minh"
     }
   ],
   "intentConfirmationSetting": null,
@@ -136,8 +214,8 @@
         "successNextStep": {
           "sessionAttributes": null,
           "dialogAction": {
-            "type": "ElicitSlot",
-            "slotToElicit": "order_id",
+            "type": "FulfillIntent",
+            "slotToElicit": null,
             "suppressNextMessage": null,
             "intentsInScope": null
           },

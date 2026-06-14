@@ -1,5 +1,6 @@
 locals {
-  name_prefix = "${var.project_name}-${var.environment}"
+  name_prefix         = "${var.project_name}-${var.environment}"
+  chatbot_webhook_url = coalesce(var.chatbot_webhook_url_override, "https://${var.chatbot_domain}/lexv2/webhook")
 }
 
 data "aws_availability_zones" "available" {

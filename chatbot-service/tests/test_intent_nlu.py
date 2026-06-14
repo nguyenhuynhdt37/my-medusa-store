@@ -29,6 +29,12 @@ from app.services.intent_nlu import (
         ("sản phẩm rẻ nhất", "top_cheap"),
         ("top giá cao nhất", "top_expensive"),
         ("tư vấn điện thoại chụp ảnh đẹp", "product_recommendation"),
+        ("kiểm tra lại đơn này", "order_tracking"),
+        ("kiếm iphone 16 pro max", "product_search"),
+        ("có samsung dòng s không", "product_search"),
+        ("tìm điện thoại dưới 15 triệu", "product_search"),
+        ("cho xem máy oppo mới nhất", "product_search"),
+        ("báo giá giúp mình", "product_price"),
         ("nói chuyện với người thật", "human_handover"),
         ("/h", "human_handover"),
     ],
@@ -44,6 +50,7 @@ def test_infer_intent_matrix(text, intent):
         "   ",
         "🤔🤔🤔",
         "asdf qwer zxcv",
+        "16",
         "Messi với Ronaldo ai đẹp trai hơn",
         "F8 học lập trình để đi làm",
     ],
@@ -64,8 +71,8 @@ def test_multi_intent_uses_priority_order():
     ("text", "expanded"),
     [
         ("ip15", "iPhone 15"),
-        ("ip 14 pro max", "iPhone 14 pro max"),
-        ("ss s26", "Samsung Galaxy s26"),
+        ("ip 14 pro max", "iPhone 14 Pro Max"),
+        ("ss s26", "Samsung Galaxy S26"),
     ],
 )
 def test_expand_product_abbreviations(text, expanded):
@@ -78,8 +85,23 @@ def test_expand_product_abbreviations(text, expanded):
         ("ProductPriceIntent", "product_price"),
         ("ShippingPolicyIntent", "shipping_policy"),
         ("ProductRecommendationIntent", "product_recommendation"),
+        ("HumanHandoffIntent", "human_handover"),
         ("FallbackIntent", "fallback"),
     ],
 )
 def test_normalize_resolved_intent_supports_lex_names(lex_intent, resolved):
     assert normalize_resolved_intent(lex_intent) == resolved
+
+
+def test_intent_failsafe_fixes():
+    # 1. Comparison false positives
+    assert infer_intent_from_text("Điện thoại mua ở shop được bảo hành chính hãng bao lâu và lỗi 1 đổi 1 trong mấy ngày?") == "warranty_policy"
+    assert infer_intent_from_text("Mua iPhone 16 có được tặng kèm củ sạc hay ốp lưng không ạ?") == "bonus"
+    
+    # 2. Payment methods mapping (MoMo/VNPAY)
+    assert infer_intent_from_text("Cửa hàng mình có chấp nhận thanh toán qua ví MoMo hay VNPAY không?") == "payment_method"
+    
+    # 3. Proper comparison classification
+    assert infer_intent_from_text("So sánh iPhone 16 và Samsung Galaxy S26 Plus") == "product_compare"
+    assert infer_intent_from_text("Nên chọn mua Xiaomi 15 Ultra hay OnePlus 13 vậy shop?") == "product_compare"
+

@@ -13,6 +13,7 @@ echo "Starting import process..." >&2
 
 # Nén thư mục Lex Bot
 echo "Zipping Lex folder at $LEX_DIR..." >&2
+rm -f "$ZIP_PATH"
 cd "$LEX_DIR"
 zip -r "$ZIP_PATH" Manifest.json EcomoiChatbot > /dev/null
 

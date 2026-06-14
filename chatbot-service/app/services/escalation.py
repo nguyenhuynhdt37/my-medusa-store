@@ -63,7 +63,15 @@ def is_explicit_handoff_request(message: str | None) -> bool:
     normalized_message = normalize(message)
     if not normalized_message:
         return False
-    return any(keyword in normalized_message for keyword in HUMAN_HANDOFF_KEYWORDS)
+    # Check exact keywords
+    if any(keyword in normalized_message for keyword in HUMAN_HANDOFF_KEYWORDS):
+        return True
+    # Flexible check: conversation request + staff noun
+    verbs = {"gap", "noi chuyen", "chuyen", "lien he", "chat", "alo", "talk", "connect", "cho"}
+    nouns = {"nhan vien", "nguoi that", "admin", "tu van vien", "sale", "support", "ky thuat", "tong dai", "nguoi ho tro"}
+    if any(v in normalized_message for v in verbs) and any(n in normalized_message for n in nouns):
+        return True
+    return False
 
 
 def should_escalate_to_admin(

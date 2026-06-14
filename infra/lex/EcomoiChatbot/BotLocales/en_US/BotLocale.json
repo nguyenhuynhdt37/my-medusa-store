@@ -1,1 +1,13 @@
-{"name":"English (US)","identifier":"en_US","version":null,"description":null,"voiceSettings":{"voiceId":"Danielle","engine":"neural"},"nluConfidenceThreshold":0.4,"generativeAISettings":{"buildtimeSettings":{"descriptiveBotBuilderSpecification":{"enabled":true,"bedrockModelSpecification":{"modelArn":"arn:aws:bedrock:ap-southeast-1:801242830551:inference-profile/global.anthropic.claude-sonnet-4-6","bedrockGuardrailConfiguration":null,"bedrockTraceStatus":null,"customPrompt":null}},"sampleUtteranceGenerationSpecification":null},"runtimeSettings":null},"speechDetectionSensitivity":"Default"}
+{
+  "name": "English (US)",
+  "identifier": "en_US",
+  "version": null,
+  "description": "Vietnamese training data deployed on en_US because vi_VN is unavailable in the current Lex export.",
+  "voiceSettings": {
+    "voiceId": "Danielle",
+    "engine": "neural"
+  },
+  "nluConfidenceThreshold": 0.4,
+  "generativeAISettings": null,
+  "speechDetectionSensitivity": "Default"
+}

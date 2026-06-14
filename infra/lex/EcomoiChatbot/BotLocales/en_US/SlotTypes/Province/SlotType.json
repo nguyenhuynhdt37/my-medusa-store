@@ -1,0 +1,58 @@
+{
+  "name": "Province",
+  "identifier": "20VSZ23XT9",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "ha noi"
+        }
+      ],
+      "sampleValue": {
+        "value": "Hà Nội"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "sài gòn"
+        },
+        {
+          "value": "hcm"
+        }
+      ],
+      "sampleValue": {
+        "value": "TP Hồ Chí Minh"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "da nang"
+        }
+      ],
+      "sampleValue": {
+        "value": "Đà Nẵng"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "can tho"
+        }
+      ],
+      "sampleValue": {
+        "value": "Cần Thơ"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

@@ -117,7 +117,8 @@ resource "aws_eip_association" "app" {
 
 resource "null_resource" "prepare_env" {
   triggers = {
-    lex_bot_id = data.external.import_lex.result.bot_id
+    lex_bot_id       = var.managed_lex_bot_id
+    lex_bot_alias_id = coalesce(var.lex_bot_alias_id, "TSTALIASID")
   }
 
   provisioner "local-exec" {
@@ -126,7 +127,8 @@ python3 -c "
 import re
 with open('${path.module}/../.env', 'r') as f:
     content = f.read()
-content = re.sub(r'^LEX_BOT_ID=.*', 'LEX_BOT_ID=${data.external.import_lex.result.bot_id}', content, flags=re.MULTILINE)
+content = re.sub(r'^LEX_BOT_ID=.*', 'LEX_BOT_ID=${var.managed_lex_bot_id}', content, flags=re.MULTILINE)
+content = re.sub(r'^LEX_BOT_ALIAS_ID=.*', 'LEX_BOT_ALIAS_ID=${coalesce(var.lex_bot_alias_id, "TSTALIASID")}', content, flags=re.MULTILINE)
 with open('${path.module}/../.env.deploy', 'w') as f:
     f.write(content)
 "
@@ -136,8 +138,9 @@ EOF
 
 resource "null_resource" "sync_env_and_restart" {
   triggers = {
-    lex_bot_id = data.external.import_lex.result.bot_id
-    env_hash   = filesha256("${path.module}/../.env")
+    lex_bot_id       = var.managed_lex_bot_id
+    lex_bot_alias_id = coalesce(var.lex_bot_alias_id, "TSTALIASID")
+    env_hash         = filesha256("${path.module}/../.env")
   }
 
   connection {
@@ -170,5 +173,4 @@ resource "null_resource" "sync_env_and_restart" {
     null_resource.prepare_env
   ]
 }
-
 

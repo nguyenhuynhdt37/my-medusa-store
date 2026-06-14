@@ -58,7 +58,7 @@ async def test_success_returns_lex_response_without_rewriting():
 
 
 @pytest.mark.asyncio
-async def test_fallback_intent_returns_502():
+async def test_fallback_intent_returns_200():
     lex_client = FakeLexClient(
         {
             "sessionState": {
@@ -72,10 +72,9 @@ async def test_fallback_intent_returns_502():
         }
     )
 
-    with pytest.raises(HTTPException, match="fallback intent") as exc_info:
-        await process_ai_request(request("không rõ"), authorization=None, lex_client=lex_client)
-
-    assert exc_info.value.status_code == 502
+    response = await process_ai_request(request("không rõ"), authorization=None, lex_client=lex_client)
+    assert response["intent"] == "fallback"
+    assert response["reply"] == "Fallback response"
     assert len(lex_client.calls) == 1
 
 

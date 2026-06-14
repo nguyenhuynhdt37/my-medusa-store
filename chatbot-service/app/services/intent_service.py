@@ -29,8 +29,10 @@ from app.schemas.lexv2 import (
 from app.services.ai_usage_service import cost_context_from_request_attributes, record_gemini_usage
 from app.services.escalation import is_explicit_handoff_request
 from app.services.intent_nlu import (
+    curated_intent_for_text,
     expand_product_abbreviations,
     extract_budget,
+    extract_budget_range,
     extract_product_name_direct,
     infer_intent_from_text,
     is_generic_product_reference,
@@ -43,12 +45,25 @@ from app.services.intent_nlu import (
 )
 
 
+KNOWN_PRODUCT_BRANDS = {
+    "apple",
+    "iphone",
+    "samsung",
+    "samsung galaxy",
+    "xiaomi",
+    "oppo",
+    "vivo",
+    "realme",
+    "google pixel",
+}
+
+
 class IntentService:
     PRODUCT_PARAMETER_NAMES = ["product", "product_name", "productName", "product_title", "item"]
     PRODUCT_A_PARAMETER_NAMES = ["product_a", "productA", "first_product", "firstProduct"]
     PRODUCT_B_PARAMETER_NAMES = ["product_b", "productB", "second_product", "secondProduct"]
     SEARCH_PARAMETER_NAMES = ["query", "search", "keyword", "category", "style", "need", "product_type", "productType"]
-    ORDER_PARAMETER_NAMES = ["order_id", "orderId", "order_code", "orderCode", "order"]
+    ORDER_PARAMETER_NAMES = ["order_id", "orderId", "order_code", "orderCode", "order", "current_order_code"]
     CUSTOMER_TOKEN_PARAMETER_NAMES = [
         "customer_access_token",
         "customerAccessToken",
@@ -59,6 +74,43 @@ class IntentService:
         "authorization",
     ]
     CONTEXT_PRODUCT_PARAMETER_NAMES = ["current_product_name", "currentProductName"]
+    PRODUCT_CONTEXT_KEYS = [
+        "product",
+        "product_name",
+        "productName",
+        "product_title",
+        "item",
+        "query",
+        "search",
+        "keyword",
+        "category",
+        "style",
+        "need",
+        "product_type",
+        "productType",
+        "current_product_id",
+        "current_product_handle",
+        "current_product_name",
+        "current_product_price",
+        "current_product_url",
+        "current_search_query",
+        "last_product_names",
+        "product_a_name",
+        "product_b_name",
+        "history_products",
+        "product_context_turns_remaining",
+    ]
+    ORDER_CONTEXT_KEYS = [
+        "order_id",
+        "orderId",
+        "order_code",
+        "orderCode",
+        "order",
+        "current_order_code",
+        "current_order_status",
+        "current_order_total",
+        "order_context_turns_remaining",
+    ]
 
     def __init__(self, medusa_client: MedusaClient, gemini_client: GeminiClient | None = None) -> None:
         self.medusa_client = medusa_client
@@ -146,6 +198,7 @@ class IntentService:
             },
         )
 
+        self._apply_context_boundary(request, response, lex_intent, text_intent)
         self._annotate_response(response, request.intent_name(), text_intent, gemini_confidence)
         finalized = await self._finalize_response(request, lex_intent, response, cost_context)
         trace(
@@ -157,6 +210,78 @@ class IntentService:
         )
         return finalized
 
+    def _apply_context_boundary(
+        self,
+        request: DialogflowCXRequest,
+        response: DialogflowCXResponse,
+        lex_intent: str,
+        text_intent: str | None,
+    ) -> None:
+        effective_intent = text_intent or normalize_resolved_intent(request.intent_name()) or lex_intent
+        product_intents = {
+            "product_search",
+            "product_price",
+            "product_recommendation",
+            "product_availability",
+            "inventory",
+            "product_compare",
+            "product_spec",
+            "product_camera",
+            "product_battery",
+            "product_gaming",
+            "bonus",
+            "warranty_policy",
+            "shipping_policy",
+            "installment",
+            "payment_method",
+            "cart_add_item",
+            "cart_view",
+            "cart_update",
+            "checkout_start",
+        }
+        order_intents = {
+            "order_tracking",
+            "shipping_tracking",
+            "order_detail",
+            "order_history",
+            "order_list",
+            "order_cancel",
+            "order_modify",
+            "refund_status",
+            "complaint",
+        }
+        product_aftercare_intents = {"return_request", "warranty_claim"}
+        neutral_intents = {
+            "smalltalk_affirmation",
+            "smalltalk_negation",
+            "smalltalk_compliment",
+        }
+
+        if effective_intent in neutral_intents:
+            return
+        if effective_intent in product_intents:
+            self._clear_response_context(response, self.ORDER_CONTEXT_KEYS)
+            return
+        if effective_intent in order_intents:
+            self._clear_response_context(response, self.PRODUCT_CONTEXT_KEYS)
+            return
+        if effective_intent in product_aftercare_intents:
+            self._clear_response_context(response, self.ORDER_CONTEXT_KEYS)
+            return
+
+        # Greeting, store information, shipping policy, handoff and fallback
+        # start a separate topic. Do not let a later ambiguous question revive
+        # product/order entities from an earlier conversation branch.
+        self._clear_response_context(
+            response,
+            self.PRODUCT_CONTEXT_KEYS + self.ORDER_CONTEXT_KEYS,
+        )
+
+    @staticmethod
+    def _clear_response_context(response: DialogflowCXResponse, keys: list[str]) -> None:
+        for key in keys:
+            response.session_info.parameters[key] = None
+
     async def _resolve_local_or_ai_intent(
         self,
         request: DialogflowCXRequest,
@@ -164,7 +289,18 @@ class IntentService:
         cost_context: dict[str, Any] | None,
     ) -> tuple[str | None, float | None]:
         text_intent = infer_intent_from_text(request.text)
-        if not text_intent and is_probable_off_topic_text(request.text):
+        curated_intent = curated_intent_for_text(request.text)
+        if curated_intent:
+            trace(
+                "INTENT_SERVICE_CURATED_INTENT",
+                {
+                    "text": request.text,
+                    "lex_intent": lex_intent,
+                    "curated_intent": curated_intent,
+                },
+            )
+            return curated_intent, None
+        if is_probable_off_topic_text(request.text):
             trace(
                 "INTENT_SERVICE_LOCAL_INTENT",
                 {
@@ -174,6 +310,63 @@ class IntentService:
                 },
             )
             return "fallback", None
+
+        safe_overrides = {
+            "human_handover",
+            "smalltalk_affirmation",
+            "smalltalk_negation",
+            "smalltalk_compliment",
+            "top_expensive",
+            "top_cheap",
+            "best_sellers",
+            "product_recommendation",
+            "complaint",
+            "order_cancel",
+            "order_detail",
+            "order_history",
+            "order_list",
+            "order_modify",
+            "refund_status",
+            "return_request",
+            "warranty_claim",
+            "cart_add_item",
+            "cart_update",
+            "cart_view",
+            "checkout_start",
+            "installment",
+            "payment_method",
+            "shipping_tracking",
+            "store_info",
+            "product_availability",
+            "inventory",
+            "product_camera",
+            "product_battery",
+            "product_gaming",
+            "product_spec",
+            "product_compare",
+            "bonus",
+            "shipping_policy",
+            "warranty_policy",
+        }
+        lex_canonical = normalize_resolved_intent(request.intent_name())
+        if text_intent in safe_overrides and text_intent != lex_canonical:
+            return text_intent, None
+
+        lex_is_fallback = "fallback" in lex_intent or "default negative" in lex_intent
+
+        # Lex is authoritative once it selected a concrete intent. The local
+        # classifier exists to recover FallbackIntent requests, not to replace
+        # a trained Lex decision with broader legacy keyword rules.
+        if not lex_is_fallback:
+            trace(
+                "INTENT_SERVICE_LEX_INTENT_ACCEPTED",
+                {
+                    "text": request.text,
+                    "lex_intent": lex_intent,
+                },
+            )
+            return None, None
+
         if text_intent:
             trace(
                 "INTENT_SERVICE_LOCAL_INTENT",
@@ -185,17 +378,7 @@ class IntentService:
             )
             return text_intent, None
 
-        if "fallback" not in lex_intent:
-            trace(
-                "INTENT_SERVICE_LEX_INTENT_ACCEPTED",
-                {
-                    "text": request.text,
-                    "lex_intent": lex_intent,
-                },
-            )
-            return None, None
-
-        return await self._resolve_intent_with_gemini(request, lex_intent, cost_context)
+        return "fallback", None
 
     async def _dispatch_intent(
         self,
@@ -206,12 +389,32 @@ class IntentService:
         cost_context: dict[str, Any] | None,
         authorization_header: str | None,
     ) -> DialogflowCXResponse:
+        effective_intent = text_intent or normalize_resolved_intent(request.intent_name()) or lex_intent
+        
+        order_intents = {
+            "order_tracking",
+            "shipping_tracking",
+            "order_detail",
+            "order_history",
+            "order_list",
+            "order_cancel",
+            "order_modify",
+            "refund_status",
+            "complaint",
+            "warranty_claim",
+            "return_request",
+        }
+        if effective_intent in order_intents:
+            extracted_code = extract_order_code_from_text(request.text, request)
+            if extracted_code:
+                set_request_parameter(request, "order_id", extracted_code)
         trace(
             "INTENT_SERVICE_DISPATCH_START",
             {
                 "session_id": getattr(request, "session_id", None),
                 "lex_intent": lex_intent,
                 "text_intent": text_intent,
+                "effective_intent": effective_intent,
                 "text": request.text,
                 "session_parameters": request_session_parameters(request),
             },
@@ -219,53 +422,89 @@ class IntentService:
         if self._is_handover_intent(request, lex_intent, text_intent):
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "human_handover", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.human_handover()
-        if text_intent == "greeting" or "greeting" in lex_intent or lex_intent in {"xin chao", "hello", "hi"}:
+        if effective_intent == "greeting" or lex_intent in {"xin chao", "hello", "hi"}:
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "greeting", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.greeting()
-        if text_intent == "fallback":
+        if effective_intent == "fallback":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "fallback", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.fallback()
-        if text_intent in {"smalltalk_affirmation", "smalltalk_negation", "smalltalk_compliment"}:
-            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": text_intent, "lex_intent": lex_intent, "text_intent": text_intent})
-            return self._smalltalk_response(text_intent)
-        if self._looks_like_product_context_bleed(request, lex_intent, text_intent):
+        if effective_intent in {"smalltalk_affirmation", "smalltalk_negation", "smalltalk_compliment"}:
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": effective_intent, "lex_intent": lex_intent, "text_intent": text_intent})
+            return self._smalltalk_response(effective_intent)
+        if (
+            effective_intent not in {
+                "product_recommendation",
+                "product_spec",
+                "product_camera",
+                "product_battery",
+                "product_gaming",
+            }
+            and self._looks_like_product_context_bleed(request, lex_intent, text_intent)
+        ):
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "context_bleed_fallback", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.fallback()
-        if text_intent in {"top_expensive", "top_cheap", "best_sellers"}:
-            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "product_ranking", "ranking": text_intent, "lex_intent": lex_intent})
-            return await self.product_ranking(request, ranking=text_intent)
-        if text_intent == "product_compare" or "productcompare" in lex_intent or "product_compare" in lex_intent:
+        if effective_intent in {"top_expensive", "top_cheap", "best_sellers"}:
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "product_ranking", "ranking": effective_intent, "lex_intent": lex_intent})
+            return await self.product_ranking(request, ranking=effective_intent)
+        if effective_intent == "store_info":
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "store_info", "lex_intent": lex_intent, "text_intent": text_intent})
+            return await self.store_info()
+        if effective_intent in {"payment_method", "installment"}:
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "payment_installment", "lex_intent": lex_intent, "text_intent": text_intent})
+            return await self.payment_or_installment(request)
+        if effective_intent in {"cart_add_item", "cart_view", "cart_update", "checkout_start"}:
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "cart_checkout_guidance", "lex_intent": lex_intent, "text_intent": text_intent})
+            return await self.cart_or_checkout_guidance(request, effective_intent)
+        if effective_intent in {
+            "order_cancel",
+            "order_modify",
+            "return_request",
+            "refund_status",
+            "warranty_claim",
+            "complaint",
+        }:
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "aftercare_handoff", "lex_intent": lex_intent, "text_intent": text_intent})
+            return await self.aftercare_handoff(request, effective_intent)
+        if effective_intent == "product_compare":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "product_compare", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.product_compare(request)
-        if text_intent == "inventory" or "inventory" in lex_intent or "stock" in lex_intent:
+        if effective_intent in {"inventory", "product_availability"}:
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "inventory_status", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.inventory_status(request)
-        if text_intent == "product_price" or "productprice" in lex_intent or "product_price" in lex_intent or "price" in lex_intent:
+        if effective_intent == "product_price":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "product_price", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.product_price(request)
-        if self._is_recommendation_intent(lex_intent, text_intent):
+        if effective_intent in {"product_spec", "product_camera", "product_battery", "product_gaming"}:
+            trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "product_advice", "lex_intent": lex_intent, "text_intent": text_intent})
+            return await self.product_advice(request, effective_intent)
+        if effective_intent == "product_recommendation":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "product_recommendation", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.product_recommendation(request)
-        if text_intent == "bonus" or "bonus" in lex_intent or "promotion" in lex_intent or "discount" in lex_intent or "khuyenmai" in lex_intent:
+        if effective_intent == "bonus":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "bonus", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.bonus(request)
-        if text_intent == "shipping_policy" or "shippingpolicy" in lex_intent or "shipping_policy" in lex_intent:
+        if effective_intent == "shipping_policy":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "shipping_policy", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.shipping_policy()
-        if text_intent == "warranty_policy" or "warrantypolicy" in lex_intent or "warranty_policy" in lex_intent:
+        if effective_intent == "warranty_policy":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "warranty_policy", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.warranty_policy(request)
-        if text_intent == "product_search" or "productsearch" in lex_intent or "product_search" in lex_intent or lex_intent == "search":
+        if effective_intent == "product_search" or lex_intent == "search":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "product_search", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.product_search(request)
-        if "orderdetail" in lex_intent or "order_detail" in lex_intent:
+        if effective_intent == "order_detail":
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "order_detail", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.order_detail(request, authorization_header=authorization_header)
-        if text_intent == "order_list":
+        if effective_intent in {"order_list", "order_history"}:
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "order_list", "lex_intent": lex_intent, "text_intent": text_intent})
             return await self.order_list(request, authorization_header=authorization_header)
-        if self._is_lex_order_tracking_intent(lex_intent):
-            if is_order_tracking_request(request):
+        if effective_intent in {"order_tracking", "shipping_tracking"}:
+            lex_canonical = normalize_resolved_intent(request.intent_name())
+            if (
+                text_intent in {"order_tracking", "shipping_tracking"}
+                or lex_canonical in {"order_tracking", "shipping_tracking"}
+                or is_order_tracking_request(request)
+            ):
                 trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "order_tracking", "lex_intent": lex_intent, "text_intent": text_intent})
                 return await self.order_tracking(request, authorization_header=authorization_header)
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "order_tracking_fallback", "lex_intent": lex_intent, "text_intent": text_intent})
@@ -281,20 +520,7 @@ class IntentService:
             return True
         if request.text and not is_explicit_handoff_request(request.text):
             return False
-        return "humanhandover" in lex_intent or "human_handover" in lex_intent or "handover" in lex_intent
-
-    @staticmethod
-    def _is_recommendation_intent(lex_intent: str, text_intent: str | None) -> bool:
-        return (
-            text_intent == "product_recommendation"
-            or "productrecommendation" in lex_intent
-            or "product_recommendation" in lex_intent
-            or "recommend" in lex_intent
-        )
-
-    @staticmethod
-    def _is_lex_order_tracking_intent(lex_intent: str) -> bool:
-        return any(token in lex_intent for token in ["orderstatus", "order_status", "ordertracking", "order_tracking", "tracking"])
+        return "humanhandover" in lex_intent or "human_handover" in lex_intent or "handover" in lex_intent or "handoff" in lex_intent
 
     def _looks_like_product_context_bleed(
         self,
@@ -415,7 +641,7 @@ class IntentService:
             "Medusan xin chào! Bạn cần hỗ trợ tư vấn sản phẩm hay hỏi về khuyến mãi không?\n(Bạn có thể gõ /h để gặp nhân viên, hoặc /b để gọi lại bot)",
             "Hi bạn, mình là trợ lý Medusan. Mình có thể hỗ trợ bạn tra giá, kiểm tra tồn kho hoặc trạng thái đơn hàng nhé!\n(Bạn có thể gõ /h để gặp nhân viên, hoặc /b để gọi lại bot)"
         ]
-        return text_response(random.choice(greetings))
+        return text_response(random.choice(greetings), {"search_status": "greeting"})
 
     async def fallback(self) -> DialogflowCXResponse:
         return text_response(
@@ -473,6 +699,113 @@ class IntentService:
                 "current_product_name": product_title,
                 "warranty_months": warranty_months,
                 "return_window_days": 7,
+            },
+        )
+
+    async def store_info(self) -> DialogflowCXResponse:
+        return text_response(
+            "\n".join(
+                [
+                    "Thông tin cửa hàng:",
+                    f"- Website: {settings.storefront_base_url}",
+                    "- Hỗ trợ online: 8:00-22:00 hằng ngày.",
+                    "- Bạn có thể đặt hàng trực tiếp trên website hoặc nhắn /h để gặp nhân viên.",
+                    "- Với yêu cầu cần xác minh tài khoản, shop sẽ cần bạn đăng nhập trước.",
+                ]
+            ),
+            {"search_status": "store_info"},
+        )
+
+    async def payment_or_installment(self, request: DialogflowCXRequest) -> DialogflowCXResponse:
+        product_name = self._resolve_product_name(request)
+        if product_name and not is_specific_catalog_query(product_name):
+            product_name = None
+        product_line = f" với {product_name}" if product_name else ""
+        return text_response(
+            "\n".join(
+                [
+                    f"Shop hỗ trợ các phương thức thanh toán{product_line}:",
+                    "- COD khi nhận hàng.",
+                    "- Chuyển khoản ngân hàng.",
+                    "- Ví điện tử/Momo/VNPAY nếu checkout đang bật cổng thanh toán tương ứng.",
+                    "- Thẻ tín dụng và trả góp tuỳ chương trình tại thời điểm đặt hàng.",
+                    "Bạn có thể thêm sản phẩm vào giỏ rồi chọn phương thức thanh toán ở bước checkout. Nếu cần duyệt trả góp, nhập /h để nhân viên hỗ trợ.",
+                ]
+            ),
+            {
+                "search_status": "payment_installment_policy",
+                "current_product_name": product_name,
+            },
+        )
+
+    async def product_advice(self, request: DialogflowCXRequest, intent: str) -> DialogflowCXResponse:
+        product_name = self._resolve_product_name(request)
+        if product_name:
+            products = await self.medusa_client.list_products(query=product_name, limit=12)
+            if not products:
+                products = await self.medusa_client.list_products(limit=250)
+            product = self._find_best_product(product_name, products)
+            if not product:
+                raise ProductNotFoundError()
+            return self._product_advice_response(product, intent)
+
+        response = await self.product_recommendation(request)
+        response.session_info.parameters["search_status"] = intent
+        return response
+
+    async def cart_or_checkout_guidance(self, request: DialogflowCXRequest, intent: str) -> DialogflowCXResponse:
+        product_name = self._resolve_product_name(request)
+        if intent in {"cart_add_item", "checkout_start"}:
+            product_hint = f" sản phẩm {product_name}" if product_name else " sản phẩm bạn muốn mua"
+            message = (
+                f"Để đặt{product_hint}, bạn mở trang sản phẩm trên website, chọn màu/dung lượng, thêm vào giỏ rồi thanh toán. "
+                "Hiện bot chưa tự thay đổi giỏ hàng thay bạn để tránh đặt nhầm sản phẩm hoặc phiên bản."
+            )
+        elif intent == "cart_view":
+            message = "Bạn có thể xem giỏ hàng trực tiếp trên website. Nếu đang đăng nhập, giỏ hàng sẽ giữ các sản phẩm bạn đã chọn."
+        else:
+            message = "Bạn có thể cập nhật số lượng hoặc xoá sản phẩm trong giỏ hàng ở website trước khi thanh toán."
+
+        return text_response(
+            message,
+            {
+                "search_status": "cart_checkout_guidance",
+                "current_product_name": product_name,
+            },
+        )
+
+    async def aftercare_handoff(self, request: DialogflowCXRequest, intent: str) -> DialogflowCXResponse:
+        order_code = request.get_parameter(self.ORDER_PARAMETER_NAMES)
+        product_name = self._resolve_product_name(request)
+        if intent == "complaint":
+            action = "ghi nhận khiếu nại"
+        elif intent == "order_cancel":
+            action = "kiểm tra điều kiện huỷ đơn"
+        elif intent == "order_modify":
+            action = "kiểm tra khả năng sửa thông tin đơn"
+        elif intent == "refund_status":
+            action = "kiểm tra trạng thái hoàn tiền"
+        elif intent == "return_request":
+            action = "kiểm tra điều kiện đổi trả"
+        elif intent == "warranty_claim":
+            action = "tiếp nhận yêu cầu bảo hành"
+        else:
+            action = "kiểm tra yêu cầu của bạn"
+
+        details = []
+        if order_code:
+            details.append(f"mã đơn {order_code}")
+        if product_name:
+            details.append(f"sản phẩm {product_name}")
+        detail_text = f" ({', '.join(details)})" if details else ""
+
+        return text_response(
+            f"Mình sẽ chuyển nhân viên để {action}{detail_text}. Các yêu cầu này cần xác minh đơn hàng/tài khoản nên bot chưa tự xử lý trực tiếp. Bạn nhập /h hoặc để lại số điện thoại để shop liên hệ.",
+            {
+                "handover_requested": True,
+                "search_status": "aftercare_handoff",
+                "current_order_code": order_code,
+                "current_product_name": product_name,
             },
         )
 
@@ -632,6 +965,8 @@ class IntentService:
         # If no exact match but query is generic (e.g., just "iPhone"), show a product list
         if not product:
             ranked = self._rank_products(expanded_name, products)
+            if not ranked:
+                ranked = self._find_brand_fallback_products(expanded_name, products)
             if ranked:
                 return self._products_list_response(
                     ranked[:5],
@@ -659,6 +994,7 @@ class IntentService:
         query = request.get_parameter(self.SEARCH_PARAMETER_NAMES + self.PRODUCT_PARAMETER_NAMES)
         query = query or extract_product_search_query_from_text(request.text)
         budget = extract_budget(request.text)
+        query = normalize_catalog_query(query)
 
         # Validate if this is actually a product search (prevents Lex V2 context bleed on 429 errors)
         if not query and budget is None:
@@ -667,9 +1003,16 @@ class IntentService:
                 return await self.fallback()
 
         products = await self.medusa_client.list_products(query=query, limit=50)
+        if products and query:
+            ranked_products = self._rank_products(query, products)
+            if not ranked_products and is_specific_catalog_query(query):
+                raise ProductNotFoundError()
+            products = ranked_products or products
         if not products and query:
             products = await self.medusa_client.list_products(limit=50)
             ranked_products = self._rank_products(query, products)
+            if not ranked_products and is_specific_catalog_query(query):
+                raise ProductNotFoundError()
             products = ranked_products if ranked_products else products
 
         if budget is not None:
@@ -687,20 +1030,64 @@ class IntentService:
         )
 
     async def product_recommendation(self, request: DialogflowCXRequest) -> DialogflowCXResponse:
+        all_products = await self.medusa_client.list_products(limit=150)
+        
+        if self.gemini_client and self.gemini_client.is_enabled():
+            try:
+                res = await self.gemini_client.generate_product_recommendation(request.text or "", all_products)
+                recommended_ids = res.get("recommended_product_ids") or []
+                message = res.get("recommendation_message")
+                
+                recommended_products = []
+                for p_id in recommended_ids:
+                    matching = next((p for p in all_products if p.get("id") == p_id), None)
+                    if matching:
+                        recommended_products.append(matching)
+                        
+                if recommended_products and message:
+                    return self._products_list_response(
+                        recommended_products[:4],
+                        title="Gợi ý sản phẩm",
+                        intro=message,
+                        status="recommendation_success",
+                        query=request.text,
+                    )
+            except Exception as e:
+                print(f"Gemini recommendation error: {e}", flush=True)
+                pass
+
         query = request.get_parameter(self.SEARCH_PARAMETER_NAMES + self.PRODUCT_PARAMETER_NAMES)
         query = query or extract_product_search_query_from_text(request.text)
-        budget = extract_budget(request.text)
+        min_budget, max_budget = extract_budget_range(request.text)
+        query = normalize_catalog_query(query)
 
         products = await self.medusa_client.list_products(query=query, limit=50)
         
-        if budget is not None:
-            products = [p for p in products if self._get_lowest_price(p) <= budget]
+        if min_budget is not None or max_budget is not None:
+            products = [
+                product
+                for product in products
+                if (min_budget is None or self._get_lowest_price(product) >= min_budget)
+                and (max_budget is None or self._get_lowest_price(product) <= max_budget)
+            ]
 
         if not products:
-            products = await self.medusa_client.list_products(limit=12)
+            if query and is_specific_catalog_query(query):
+                raise ProductNotFoundError()
+            products = await self.medusa_client.list_products(limit=50)
+            if min_budget is not None or max_budget is not None:
+                products = [
+                    product
+                    for product in products
+                    if (min_budget is None or self._get_lowest_price(product) >= min_budget)
+                    and (max_budget is None or self._get_lowest_price(product) <= max_budget)
+                ]
 
         if query:
-            products = self._rank_products(query, products) or products
+            ranked_products = self._rank_products(query, products)
+            if not ranked_products and is_specific_catalog_query(query):
+                raise ProductNotFoundError()
+            products = ranked_products or products
 
         if not products:
             raise ProductNotFoundError()
@@ -711,6 +1098,58 @@ class IntentService:
             intro="Dựa trên nhu cầu của bạn, mình gợi ý các sản phẩm này:",
             status="recommendation_success",
             query=query,
+        )
+
+    def _product_advice_response(self, product: dict[str, Any], intent: str) -> DialogflowCXResponse:
+        title = str(product.get("title") or "Sản phẩm")
+        metadata = product.get("metadata") or {}
+        fields = {
+            "product_spec": [
+                ("Chip/hiệu năng", ["chip", "performance", "processor"]),
+                ("RAM", ["ram"]),
+                ("Màn hình", ["display", "screen", "refresh_rate"]),
+                ("eSIM", ["esim", "sim"]),
+            ],
+            "product_camera": [
+                ("Camera", ["camera"]),
+                ("Chụp đêm", ["night_camera", "night_mode"]),
+                ("Video", ["video", "stabilization"]),
+                ("Selfie", ["selfie", "front_camera"]),
+            ],
+            "product_battery": [
+                ("Pin", ["battery", "battery_life"]),
+                ("Sạc", ["charging", "fast_charging"]),
+            ],
+            "product_gaming": [
+                ("Hiệu năng", ["chip", "performance"]),
+                ("Gaming", ["gaming", "use_case"]),
+                ("Tản nhiệt", ["cooling", "thermal"]),
+                ("Màn hình", ["display", "refresh_rate"]),
+            ],
+        }
+        labels = {
+            "product_spec": "Thông số",
+            "product_camera": "Camera",
+            "product_battery": "Pin và sạc",
+            "product_gaming": "Khả năng chơi game",
+        }
+        lines = [f"{labels.get(intent, 'Thông tin')} của {title}:"]
+        available = 0
+        for label, keys in fields.get(intent, []):
+            value = metadata_text(metadata, keys)
+            if value != "Chưa cập nhật":
+                available += 1
+            lines.append(f"- {label}: {value}")
+        if available == 0:
+            lines.append("Shop chưa cập nhật đủ dữ liệu kỹ thuật chi tiết cho mẫu này.")
+        return text_response(
+            "\n".join(lines),
+            {
+                "current_product_id": product.get("id"),
+                "current_product_handle": product.get("handle"),
+                "current_product_name": title,
+                "search_status": intent,
+            },
         )
 
     async def inventory_status(self, request: DialogflowCXRequest) -> DialogflowCXResponse:
@@ -725,6 +1164,17 @@ class IntentService:
 
         product = self._find_best_product(product_name, products)
         if not product:
+            ranked = self._rank_products(product_name, products)
+            if not ranked:
+                ranked = self._find_brand_fallback_products(product_name, products)
+            if ranked:
+                return self._products_list_response(
+                    ranked[:5],
+                    title="Sản phẩm phù hợp",
+                    intro=f"Mình chưa tìm thấy \"{product_name}\". Bạn có thể tham khảo các sản phẩm tương tự của cùng thương hiệu:",
+                    status="product_list_fallback",
+                    query=product_name,
+                )
             raise ProductNotFoundError()
 
         variants = product.get("variants", []) or []
@@ -764,8 +1214,10 @@ class IntentService:
         product_a_name = request.get_parameter(self.PRODUCT_A_PARAMETER_NAMES)
         product_b_name = request.get_parameter(self.PRODUCT_B_PARAMETER_NAMES)
 
-        if not product_a_name or not product_b_name:
-            extracted = extract_product_compare_names_from_text(request.text)
+        extracted = extract_product_compare_names_from_text(request.text)
+        if extracted[0] and extracted[1]:
+            product_a_name, product_b_name = extracted
+        else:
             product_a_name = product_a_name or extracted[0]
             product_b_name = product_b_name or extracted[1]
 
@@ -790,8 +1242,38 @@ class IntentService:
             raise ProductNotFoundError()
 
         products = await self.medusa_client.list_products(limit=100)
-        product_a = self._find_best_product(product_a_name, products)
-        product_b = self._find_best_product(product_b_name, products)
+        product_a = self._find_best_product(product_a_name, products) if product_a_name else None
+        product_b = self._find_best_product(product_b_name, products) if product_b_name else None
+
+        if not product_a or not product_b:
+            normalized_text = normalize_text(request.text or "")
+            sorted_products_by_len = sorted(
+                products,
+                key=lambda p: len(normalize_text(str(p.get("title", "")))),
+                reverse=True
+            )
+            found_products = []
+            temp_text = normalized_text
+            for p in sorted_products_by_len:
+                p_title = normalize_text(str(p.get("title", "")))
+                if not p_title:
+                    continue
+                pattern = rf"\b{re.escape(p_title)}\b"
+                if re.search(pattern, temp_text):
+                    found_products.append(p)
+                    temp_text = re.sub(pattern, " ", temp_text)
+                    if len(found_products) >= 2:
+                        break
+            
+            if len(found_products) >= 2:
+                product_a = found_products[0]
+                product_b = found_products[1]
+            elif len(found_products) == 1:
+                if not product_a:
+                    product_a = found_products[0]
+                elif not product_b:
+                    product_b = found_products[0]
+
         if not product_a or not product_b:
             raise ProductNotFoundError()
 
@@ -863,16 +1345,20 @@ class IntentService:
             total_text = format_money(total, currency) if total is not None and currency else "Chưa cập nhật"
             lines.append(f"- {display_code}: {status}, tổng tiền {total_text}")
 
+        first_order = orders[0]
+        recent_order_code = self._display_order_code(first_order, str(first_order.get("id") or ""))
         return text_response(
             "\n".join(lines),
             {
                 "order_count": len(orders),
+                "current_order_code": recent_order_code,
                 "search_status": "success",
             },
         )
 
     async def bonus(self, request: DialogflowCXRequest) -> DialogflowCXResponse:
         promo_code = request.get_parameter(["promo_code", "promoCode", "code"])
+        promo_code = promo_code or extract_promo_code_from_text(request.text)
         if promo_code:
             return text_response(
                 promotion_code_message(promo_code),
@@ -883,11 +1369,16 @@ class IntentService:
                 },
             )
 
-        query = request.get_parameter(self.SEARCH_PARAMETER_NAMES + self.PRODUCT_PARAMETER_NAMES)
+        generic_request = is_generic_promotion_request(request.text)
+        query = None if generic_request else request.get_parameter(self.SEARCH_PARAMETER_NAMES + self.PRODUCT_PARAMETER_NAMES)
         query = query or extract_promotion_product_from_text(request.text)
-        if not query and not is_generic_promotion_request(request.text):
+        if query and is_generic_product_reference(query):
+            query = None
+        if not query and not generic_request:
             query = extract_product_search_query_from_text(request.text)
-        if not query and is_product_context_followup(request.text):
+        if query and is_generic_product_reference(query):
+            query = None
+        if not query and not generic_request and is_product_context_followup(request.text):
             query = request.get_parameter(self.CONTEXT_PRODUCT_PARAMETER_NAMES)
         if not query:
             return text_response(
@@ -918,11 +1409,13 @@ class IntentService:
                 query=query,
             )
 
+        subject = f"cho {query}" if query else "cho nhóm sản phẩm này"
         return text_response(
-            "Hiện mình chưa thấy chương trình khuyến mãi áp dụng cho nhóm sản phẩm này. Bạn vẫn có thể hỏi mình giá từng sản phẩm cụ thể nhé.",
+            f"Hiện mình chưa thấy chương trình khuyến mãi áp dụng {subject}. Bạn vẫn có thể hỏi mình giá từng sản phẩm cụ thể nhé.",
             {
                 "promotion_status": "none",
                 "search_status": "promotion_not_found",
+                "current_product_name": query,
             },
         )
 
@@ -932,8 +1425,13 @@ class IntentService:
         authorization_header: str | None = None,
     ) -> DialogflowCXResponse:
         order_code = request.get_parameter(self.ORDER_PARAMETER_NAMES)
+        if order_code and not is_plausible_order_code(order_code, request):
+            raise MissingOrderCodeError()
         
         if not order_code:
+            if is_deictic_order_reference(request.text):
+                raise MissingOrderCodeError()
+
             customer_access_token = authorization_header or request.get_parameter(self.CUSTOMER_TOKEN_PARAMETER_NAMES)
             if not customer_access_token:
                 raise AuthenticationRequiredError()
@@ -1036,7 +1534,7 @@ class IntentService:
         order_code = request.get_parameter(self.ORDER_PARAMETER_NAMES)
         customer_access_token = authorization_header or request.get_parameter(self.CUSTOMER_TOKEN_PARAMETER_NAMES)
 
-        if not order_code:
+        if not order_code or not is_plausible_order_code(order_code, request):
             raise MissingOrderCodeError()
 
         if not customer_access_token:
@@ -1046,6 +1544,40 @@ class IntentService:
         if not order:
             raise OrderNotFoundError()
         return order
+
+    @staticmethod
+    def _find_brand_fallback_products(query: str, products: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        normalized_query = normalize_text(expand_product_abbreviations(query))
+        detected_brand = None
+        brand_map = {
+            "iphone": "iphone",
+            "apple": "iphone",
+            "samsung": "samsung",
+            "ss": "samsung",
+            "xiaomi": "xiaomi",
+            "oppo": "oppo",
+            "vivo": "vivo",
+            "realme": "realme",
+            "google": "google pixel",
+            "pixel": "google pixel"
+        }
+        for kw, b in brand_map.items():
+            if re.search(rf"\b{re.escape(kw)}\b", normalized_query):
+                detected_brand = b
+                break
+                
+        if not detected_brand:
+            return []
+            
+        fallback_products = []
+        for p in products:
+            p_title = normalize_text(str(p.get("title", "")))
+            p_handle = normalize_text(str(p.get("handle", "")))
+            haystack = f"{p_title} {p_handle}".strip()
+            if detected_brand in haystack or (detected_brand == "samsung" and "ss" in haystack):
+                fallback_products.append(p)
+                
+        return fallback_products
 
     @staticmethod
     def _find_best_product(query: str, products: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -1060,8 +1592,12 @@ class IntentService:
 
             if not haystack:
                 continue
-            if normalized_query in haystack or haystack in normalized_query:
+            if not catalog_candidate_matches_query(normalized_query, haystack):
+                continue
+            if title in normalized_query or handle in normalized_query:
                 score = 1.0
+            elif normalized_query in title or normalized_query in handle:
+                score = 0.8
             else:
                 score = SequenceMatcher(None, normalized_query, haystack).ratio()
 
@@ -1069,10 +1605,11 @@ class IntentService:
                 best_score = score
                 best_product = product
 
-        return best_product if best_score >= 0.35 else None
+        threshold = 0.55 if is_specific_catalog_query(normalized_query) else 0.35
+        return best_product if best_score >= threshold else None
 
     def _rank_products(self, query: str, products: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        normalized_query = normalize_text(query)
+        normalized_query = normalize_text(expand_product_abbreviations(query))
         scored: list[tuple[float, dict[str, Any]]] = []
 
         for product in products:
@@ -1082,10 +1619,13 @@ class IntentService:
             haystack = f"{title} {handle} {description}".strip()
             if not haystack:
                 continue
-            score = 1.0 if normalized_query in haystack else SequenceMatcher(None, normalized_query, haystack).ratio()
+            if not catalog_candidate_matches_query(normalized_query, haystack):
+                continue
+            score = catalog_match_score(normalized_query, haystack)
             scored.append((score, product))
 
-        return [product for score, product in sorted(scored, key=lambda item: item[0], reverse=True) if score >= 0.25]
+        threshold = 0.45 if is_specific_catalog_query(normalized_query) else 0.25
+        return [product for score, product in sorted(scored, key=lambda item: item[0], reverse=True) if score >= threshold]
 
     def _sort_best_seller_products(self, products: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return sorted(products, key=best_seller_score, reverse=True)
@@ -1147,23 +1687,7 @@ class IntentService:
         discount_text = product_promotion_hint(product)
         variant_lines = build_variant_price_lines(prices)
 
-        markdown = "\n".join(
-            [
-                f"### {title}",
-                "",
-                f"![{title}]({image_url})" if image_url else "",
-                "",
-                f"**Giá từ:** {price_text}",
-                f"**Khuyến mãi:** {discount_text}",
-                f"**Size:** {size_text}",
-                f"**Chất liệu:** {material}",
-                "",
-                "**Bảng giá theo size:**",
-                *variant_lines,
-                "",
-                f"[Xem chi tiết sản phẩm]({product_url})",
-            ]
-        ).strip()
+        markdown = f"{title}: giá từ {price_text}. Khuyến mãi: {discount_text}."
 
         payload = {
             "richContent": [
@@ -1230,25 +1754,25 @@ class IntentService:
 
     def _resolve_product_name(self, request: DialogflowCXRequest) -> str | None:
         explicit_product = request.get_parameter(self.PRODUCT_PARAMETER_NAMES)
-        if explicit_product:
+        if explicit_product and is_plausible_product_name(explicit_product):
             return expand_product_abbreviations(explicit_product)
 
         extracted_product = extract_product_name_from_text(request.text)
-        if extracted_product and not is_generic_product_reference(extracted_product):
+        if extracted_product and not is_generic_product_reference(extracted_product) and is_plausible_product_name(extracted_product):
             return expand_product_abbreviations(extracted_product)
 
         # Try extracting product name directly from text (handles cases like "Ip15", "iPhone 12 giá")
         direct_name = extract_product_name_direct(request.text)
-        if direct_name and not is_brand_only_name(direct_name):
+        if direct_name and not is_brand_only_name(direct_name) and is_plausible_product_name(direct_name):
             return direct_name
 
         context_product = request.get_parameter(self.CONTEXT_PRODUCT_PARAMETER_NAMES)
-        if context_product and is_product_context_followup(request.text):
+        if context_product and is_product_context_followup(request.text) and is_plausible_product_name(context_product):
             return context_product
             
         history = request.get_parameter(["history_products"])
         if history and is_product_context_followup(request.text):
-            items = [x.strip() for x in str(history).split("|") if x.strip()]
+            items = [x.strip() for x in str(history).split("|") if x.strip() and is_plausible_product_name(x.strip())]
             if items:
                 return items[0]
 
@@ -1264,7 +1788,7 @@ class IntentService:
         query: str | None = None,
     ) -> DialogflowCXResponse:
         cards = []
-        lines = [title, "", intro]
+        lines = [title, intro]
         product_payloads = []
 
         for product in products:
@@ -1276,7 +1800,8 @@ class IntentService:
             image_url = product.get("thumbnail") or first_image_url(product)
             discount_text = product_promotion_hint(product)
 
-            lines.append(f"- {product_title}: {price_text} - Ưu đãi: {discount_text}")
+            lines.append(f"- {product_title}: {price_text}")
+
             if image_url:
                 cards.append(
                     {
@@ -1324,6 +1849,12 @@ class IntentService:
                 parameters["current_product_id"] = product.get("id")
             if product.get("handle"):
                 parameters["current_product_handle"] = product.get("handle")
+        else:
+            parameters["current_product_id"] = None
+            parameters["current_product_handle"] = None
+            parameters["current_product_name"] = None
+            parameters["current_product_price"] = None
+            parameters["current_product_url"] = None
         if product_payloads:
             parameters["last_product_names"] = " | ".join(product["title"] for product in product_payloads[:5])
 
@@ -1418,14 +1949,33 @@ def first_text_message(response: DialogflowCXResponse) -> str | None:
 
 def merge_session_parameters(request: DialogflowCXRequest, response: DialogflowCXResponse) -> None:
     merged = request_session_parameters(request)
+    response_parameters: dict[str, Any | None] = {}
     if response.session_info:
         for key, value in response.session_info.parameters.items():
             unwrapped = unwrap_parameter_value(value)
+            response_parameters[key] = unwrapped
             if unwrapped is not None:
                 merged[key] = unwrapped
             else:
                 if key in merged:
                     merged[key] = None
+
+    refresh_product_context = any(
+        response_parameters.get(key)
+        for key in ["current_product_name", "current_product_id", "current_product_handle", "product_a_name", "product_b_name"]
+    )
+    clear_product_context = any(
+        key in response_parameters and response_parameters[key] is None
+        for key in ["current_product_name", "history_products"]
+    )
+    refresh_order_context = any(
+        response_parameters.get(key)
+        for key in ["current_order_code", "current_order_status"]
+    )
+    clear_order_context = any(
+        key in response_parameters and response_parameters[key] is None
+        for key in ["current_order_code"]
+    )
 
     if "current_product_name" in merged and merged["current_product_name"]:
         current = str(merged["current_product_name"])
@@ -1436,14 +1986,67 @@ def merge_session_parameters(request: DialogflowCXRequest, response: DialogflowC
             history_list.remove(current)
         history_list.insert(0, current)
         
-        history_list = history_list[:10]
+        history_list = history_list[:2]
         merged["history_products"] = " | ".join(history_list)
+
+    apply_short_context_ttl(
+        merged,
+        context_keys=IntentService.PRODUCT_CONTEXT_KEYS,
+        ttl_key="product_context_turns_remaining",
+        refresh=refresh_product_context,
+        clear=clear_product_context,
+    )
+    apply_short_context_ttl(
+        merged,
+        context_keys=IntentService.ORDER_CONTEXT_KEYS,
+        ttl_key="order_context_turns_remaining",
+        refresh=refresh_order_context,
+        clear=clear_order_context,
+    )
 
     if "bot_final_message" in merged:
         del merged["bot_final_message"]
 
     if merged:
         response.session_info = SessionInfo(parameters=merged)
+
+
+def apply_short_context_ttl(
+    parameters: dict[str, Any],
+    *,
+    context_keys: list[str],
+    ttl_key: str,
+    refresh: bool,
+    clear: bool,
+) -> None:
+    if clear:
+        parameters[ttl_key] = None
+        return
+    if refresh:
+        parameters[ttl_key] = 2
+        return
+
+    has_context = any(parameters.get(key) for key in context_keys if key != ttl_key)
+    if not has_context:
+        parameters[ttl_key] = None
+        return
+
+    try:
+        raw_turns_remaining = parameters.get(ttl_key)
+        if raw_turns_remaining in {None, ""}:
+            parameters[ttl_key] = 1
+            return
+        turns_remaining = int(raw_turns_remaining)
+    except (TypeError, ValueError):
+        turns_remaining = 0
+
+    turns_remaining -= 1
+    if turns_remaining <= 0:
+        for key in context_keys:
+            parameters[key] = None
+        parameters[ttl_key] = None
+    else:
+        parameters[ttl_key] = turns_remaining
 
 
 def request_session_parameters(request: DialogflowCXRequest) -> dict[str, Any]:
@@ -1481,15 +2084,192 @@ def clean_optional_text(value: Any) -> str | None:
     return text
 
 
-def is_order_tracking_request(request: DialogflowCXRequest) -> bool:
-    if request.get_parameter(IntentService.ORDER_PARAMETER_NAMES):
+def normalize_catalog_query(value: Any) -> str | None:
+    text = clean_optional_text(value)
+    if not text:
+        return None
+
+    cleaned = strip_product_noise(text)
+    if not cleaned:
+        return None
+
+    normalized = normalize_text(cleaned)
+    if is_generic_product_reference(cleaned) or normalized in {"phone", "smartphone"}:
+        return None
+    return expand_product_abbreviations(cleaned)
+
+
+def is_brand_only_name(value: str) -> bool:
+    return normalize_text(value) in KNOWN_PRODUCT_BRANDS
+
+
+def is_specific_catalog_query(value: str | None) -> bool:
+    normalized = normalize_text(value or "")
+    if not normalized:
+        return False
+    if is_generic_product_reference(normalized):
+        return False
+    return (
+        any(has_brand_word(normalized, brand) for brand in KNOWN_PRODUCT_BRANDS)
+        or bool(re.search(r"\b(?:iphone|ip|samsung|galaxy|ss)?\s*\d{1,2}\b", normalized))
+    )
+
+
+def has_brand_word(normalized: str, brand: str) -> bool:
+    return re.search(rf"\b{re.escape(normalize_text(brand))}\b", normalized) is not None
+
+
+def query_required_qualifiers(normalized_query: str) -> set[str]:
+    qualifiers: set[str] = set()
+    if re.search(r"\bpro\s+max\b", normalized_query):
+        qualifiers.update({"pro", "max"})
+    elif re.search(r"\bpro\b", normalized_query):
+        qualifiers.add("pro")
+    if re.search(r"\bultra\b", normalized_query):
+        qualifiers.add("ultra")
+    if re.search(r"\bplus\b", normalized_query):
+        qualifiers.add("plus")
+    if re.search(r"\bmini\b", normalized_query):
+        qualifiers.add("mini")
+    if re.search(r"\bfe\b", normalized_query):
+        qualifiers.add("fe")
+    return qualifiers
+
+
+def query_model_numbers(normalized_query: str) -> set[str]:
+    return set(re.findall(r"\b(\d{1,2})\b", normalized_query))
+
+
+def catalog_candidate_matches_query(normalized_query: str, normalized_haystack: str) -> bool:
+    required_qualifiers = query_required_qualifiers(normalized_query)
+    if any(qualifier not in normalized_haystack for qualifier in required_qualifiers):
+        return False
+
+    query_brands = {brand for brand in KNOWN_PRODUCT_BRANDS if has_brand_word(normalized_query, brand)}
+    query_brands -= {"apple"} if "iphone" in query_brands else set()
+    if query_brands and not any(has_brand_word(normalized_haystack, brand) for brand in query_brands):
+        return False
+
+    numbers = query_model_numbers(normalized_query)
+    if numbers and not numbers.intersection(query_model_numbers(normalized_haystack)):
+        return False
+
+    return True
+
+
+def catalog_match_score(normalized_query: str, normalized_haystack: str) -> float:
+    if normalized_query in normalized_haystack:
+        return 1.0
+    if is_samsung_s_series_query(normalized_query) and re.search(r"\bs\d{1,2}\b", normalized_haystack):
+        return 0.85
+
+    query_tokens = set(normalized_query.split())
+    haystack_tokens = set(normalized_haystack.split())
+    if query_tokens:
+        covered = sum(
+            1
+            for token in query_tokens
+            if token in haystack_tokens or any(candidate.startswith(token) for candidate in haystack_tokens)
+        )
+        token_score = covered / len(query_tokens)
+    else:
+        token_score = 0.0
+
+    sequence_score = SequenceMatcher(None, normalized_query, normalized_haystack).ratio()
+    return max(token_score * 0.8, sequence_score)
+
+
+def is_samsung_s_series_query(normalized_query: str) -> bool:
+    return has_brand_word(normalized_query, "samsung") and re.search(r"\bs\b", normalized_query) is not None
+
+
+def is_plausible_product_name(value: Any) -> bool:
+    if not value:
+        return False
+    name = str(value).strip()
+    if not name:
+        return False
+    normalized = normalize_text(name)
+    if not normalized:
+        return False
+    if normalized.isdigit():
+        return False
+    if not any(char.isalpha() for char in normalized):
+        return False
+    if normalized in {"co", "khong", "co gi", "nao", "gi", "cua", "cho", "dung", "va", "hay", "voi", "hoac"}:
+        return False
+    return True
+
+
+def is_plausible_order_code(value: Any, request: DialogflowCXRequest | None = None) -> bool:
+    text = clean_optional_text(value)
+    if not text:
+        return False
+    normalized = normalize_text(text)
+    if re.search(r"\bord[-\s]?\d+\b", normalized):
         return True
+    if re.fullmatch(r"\d{3,}", normalized):
+        return True
+    if re.fullmatch(r"\d{1,2}", normalized):
+        if request:
+            req_text = normalize_text(request.text or "")
+            order_keywords = {"don", "order", "ma", "chi tiet", "code", "dh", "status", "trang thai", "check"}
+            if any(kw in req_text for kw in order_keywords):
+                return True
+            session_params = request_session_parameters(request)
+            if session_params.get("search_status") == "missing_order_code":
+                return True
+        return False
+    return False
+
+
+def extract_order_code_from_text(text: str | None, request: DialogflowCXRequest | None = None) -> str | None:
+    if not text:
+        return None
+    normalized = normalize_text(text)
+    match = re.search(r"\bord\s?(\d+)\b", normalized)
+    if match:
+        return f"ORD-{match.group(1)}"
+    for num_match in re.finditer(r"\b\d+\b", normalized):
+        num_str = num_match.group(0)
+        if is_plausible_order_code(num_str, request):
+            return num_str
+    return None
+
+
+def extract_promo_code_from_text(text: str | None) -> str | None:
+    if not text:
+        return None
+    normalized = normalize_text(text)
+    promo_codes = {"welcome10", "android15", "phone500k", "freeship", "preorder17"}
+    for code in promo_codes:
+        if re.search(rf"\b{re.escape(code)}\b", normalized):
+            return code.upper()
+    return None
+
+
+def is_order_tracking_request(request: DialogflowCXRequest) -> bool:
+    order_code = request.get_parameter(IntentService.ORDER_PARAMETER_NAMES)
+    if order_code:
+        return is_plausible_order_code(order_code, request)
+
+    if re.fullmatch(r"\s*\d{1,2}\s*", request.text or ""):
+        return False
+
+    if extract_product_name_direct(request.text):
+        return False
+
+    if extract_product_search_query_from_text(request.text):
+        return False
+
+    if extract_budget(request.text) is not None:
+        return False
 
     normalized = normalize_text(request.text or "")
     if not normalized:
         return False
 
-    if re.search(r"\b(?:ord[-\s]?)?\d{3,}\b", normalized):
+    if re.search(r"\bord[-\s]?\d+\b", normalized) or re.search(r"\b\d{3,}\b", normalized):
         return True
 
     order_keywords = [
@@ -1521,6 +2301,22 @@ def is_order_tracking_request(request: DialogflowCXRequest) -> bool:
         "don" in normalized and any(keyword in normalized for keyword in tracking_keywords)
     )
 
+
+def is_deictic_order_reference(text: str | None) -> bool:
+    normalized = normalize_text(text or "")
+    return any(
+        phrase in normalized
+        for phrase in [
+            "don nay",
+            "don do",
+            "don kia",
+            "don vua roi",
+            "order nay",
+            "order do",
+        ]
+    )
+
+
 def extract_product_name_from_text(text: str | None) -> str | None:
     if not text:
         return None
@@ -1550,6 +2346,7 @@ def extract_product_search_query_from_text(text: str | None) -> str | None:
     cleaned = " ".join(text.strip().split())
     patterns = [
         r"^(?:tìm|tim|kiếm|kiem|search|tìm kiếm|tim kiem)\s+(.+?)\??$",
+        r"^(?:cho xem|xem)\s+(.+?)\??$",
         r"^(?:gợi ý|goi y|recommend|đề xuất|de xuat|tư vấn|tu van)\s+(.+?)\??$",
         r"^(?:có|co)\s+(.+?)\s+(?:không|khong)\??$",
         r"^(?:sản phẩm|san pham)\s+(.+?)\??$",
@@ -1565,6 +2362,11 @@ def extract_product_search_query_from_text(text: str | None) -> str | None:
     product_name = extract_product_name_from_text(cleaned)
     if product_name:
         return product_name
+
+    normalized = normalize_text(cleaned)
+    for brand in KNOWN_PRODUCT_BRANDS:
+        if has_brand_word(normalized, brand):
+            return brand
 
     return None
 
@@ -1609,6 +2411,14 @@ def is_generic_promotion_request(text: str | None) -> bool:
         "voucher nao",
         "uu dai nao",
         "ưu đãi nào",
+        "hom nay co uu dai",
+        "hôm nay có ưu đãi",
+        "hom nay shop co ma giam gia",
+        "hôm nay shop có mã giảm giá",
+        "khuyen mai gi cho khach moi",
+        "khuyến mãi gì cho khách mới",
+        "chuong trinh khuyen mai gi",
+        "chương trình khuyến mãi gì",
     ]
     return any(phrase in normalized for phrase in generic_phrases)
 
@@ -1619,6 +2429,8 @@ def extract_product_compare_names_from_text(text: str | None) -> tuple[str | Non
 
     cleaned = " ".join(text.strip().split())
     patterns = [
+        r"^(?:so sánh|so sanh)(?:\s+giúp mình|\s+giup minh)?(?:\s+cấu hình|\s+cau hinh)?\s+(?:giữa|giua)\s+(.+?)\s+(?:và|va|với|voi)\s+(.+?)(?:\s+(?:cái nào tốt hơn|cai nao tot hon|thì sao|thi sao))?\??$",
+        r"^(?:thế còn|the con)?\s*(.+?)\s+(?:so với|so voi)\s+(.+?)(?:\s+(?:thì sao|thi sao|thế nào|the nao))?\??$",
         r"^(?:so sánh|so sanh)\s+(.+?)\s+(?:và|va|với|voi)\s+(.+?)\??$",
         r"^(.+?)\s+(?:với|voi|và|va)\s+(.+?)\s+(?:máy nào tốt hơn|may nao tot hon|nên mua|nen mua).*$",
         r"^(?:nên mua|nen mua)\s+(.+?)\s+(?:hay|hoặc|hoac)\s+(.+?)\??$",
@@ -1667,8 +2479,36 @@ def extract_limit_from_text(text: str | None) -> int | None:
 
 def strip_product_noise(value: str) -> str:
     cleaned = value.strip(" ?.!,:;")
+    # Remove common filler words
     cleaned = re.sub(
-        r"\b(của|cua|mẫu|mau|sản phẩm|san pham|cho tôi|cho toi|cho mình|cho minh)\b",
+        r"\b(của|cua|mẫu|mau|sản phẩm|san pham|cho tôi|cho toi|cho mình|cho minh|giúp mình|giup minh|giùm mình|gium minh|giúp tôi|giup toi)\b",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    # Remove budget numbers and units (e.g. 25 triệu, 25tr, 25trieu, 25 củ)
+    cleaned = re.sub(
+        r"\b\d+(?:\.\d+)?\s*(triệu|trieu|tr|củ|cu|t|m)\b",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    # Remove price relationship words
+    cleaned = re.sub(
+        r"\b(giá|gia|tầm|tam|khoảng|khoang|dưới|duoi|trên|tren|hơn|hon|đổ lại|do lai|đổ xuống|do xuong|từ|tu|đến|den)\b",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    # Remove interrogative/filler words
+    cleaned = re.sub(
+        r"\b(nào|nao|gì|gi|thế nào|the nao|bao nhiêu|bao nhieu|đâu|dau|máy|may)\b",
+        " ",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\b(mới nhất|moi nhat|dòng|dong|loại|loai|model|mẫu mới|mau moi)\b",
         " ",
         cleaned,
         flags=re.IGNORECASE,

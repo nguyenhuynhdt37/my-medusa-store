@@ -33,8 +33,6 @@ def _validate_lex_response(response: dict[str, Any]) -> tuple[str, dict[str, Any
         raise HTTPException(status_code=502, detail="Lex returned no intent.")
     if intent.get("state") == "Failed":
         raise HTTPException(status_code=502, detail=f"Lex fulfillment failed for intent {intent_name}.")
-    if "fallback" in intent_name.lower():
-        raise HTTPException(status_code=502, detail=f"Lex returned fallback intent {intent_name}.")
     if resolution_source not in {"lex", "local_nlu", "gemini"}:
         raise HTTPException(status_code=502, detail=f"Lex returned invalid resolution source {resolution_source}.")
     if not has_message:

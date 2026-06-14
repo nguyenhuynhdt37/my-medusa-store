@@ -1,1 +1,328 @@
-{"name":"ShippingPolicyIntent","identifier":"POY8OGCHDP","displayName":null,"description":"hỏi giao hàng.","parentIntentSignature":null,"sampleUtterances":[{"utterance":"shop giao hàng mất bao lâu"},{"utterance":"phí ship bao nhiêu"},{"utterance":"có giao nhanh không"},{"utterance":"có miễn phí vận chuyển không"},{"utterance":"giao trong ngày được không"},{"utterance":"shop giao tới tỉnh không"},{"utterance":"chính sách vận chuyển thế nào"}],"intentConfirmationSetting":null,"intentClosingSetting":null,"initialResponseSetting":{"conditional":null,"codeHook":{"isActive":true,"enableCodeHookInvocation":true,"invocationLabel":null,"postCodeHookSpecification":{"failureResponse":null,"failureNextStep":{"sessionAttributes":null,"dialogAction":{"type":"EndConversation","slotToElicit":null,"suppressNextMessage":null,"intentsInScope":null},"intent":{"name":null,"slots":null}},"failureConditional":null,"successResponse":null,"successNextStep":{"sessionAttributes":null,"dialogAction":{"type":"FulfillIntent","slotToElicit":null,"suppressNextMessage":null,"intentsInScope":null},"intent":{"name":null,"slots":null}},"successConditional":null,"timeoutResponse":null,"timeoutNextStep":{"sessionAttributes":null,"dialogAction":{"type":"EndConversation","slotToElicit":null,"suppressNextMessage":null,"intentsInScope":null},"intent":{"name":null,"slots":null}},"timeoutConditional":null}},"nextStep":{"sessionAttributes":null,"dialogAction":{"type":"InvokeDialogCodeHook","slotToElicit":null,"suppressNextMessage":null,"intentsInScope":null},"intent":{"name":null,"slots":null}},"initialResponse":null},"inputContexts":null,"outputContexts":null,"kendraConfiguration":null,"qnAIntentConfiguration":null,"bedrockAgentIntentConfiguration":null,"qInConnectIntentConfiguration":null,"dialogCodeHook":{"enabled":true},"fulfillmentCodeHook":{"isActive":true,"postFulfillmentStatusSpecification":{"failureResponse":null,"failureNextStep":{"sessionAttributes":null,"dialogAction":{"type":"EndConversation","slotToElicit":null,"suppressNextMessage":null,"intentsInScope":null},"intent":{"name":null,"slots":null}},"successResponse":null,"successNextStep":{"sessionAttributes":null,"dialogAction":{"type":"EndConversation","slotToElicit":null,"suppressNextMessage":null,"intentsInScope":null},"intent":{"name":null,"slots":null}},"timeoutResponse":null,"timeoutNextStep":{"sessionAttributes":null,"dialogAction":{"type":"EndConversation","slotToElicit":null,"suppressNextMessage":null,"intentsInScope":null},"intent":{"name":null,"slots":null}}},"fulfillmentUpdatesSpecification":null,"enabled":true},"slotPriorities":[]}
+{
+  "name": "ShippingPolicyIntent",
+  "identifier": "CDSHLEJRXN",
+  "displayName": null,
+  "description": "Chính sách vận chuyển",
+  "parentIntentSignature": null,
+  "sampleUtterances": [
+    {
+      "utterance": "phí ship bao nhiêu"
+    },
+    {
+      "utterance": "phi ship bao nhieu"
+    },
+    {
+      "utterance": "bao lâu giao hàng"
+    },
+    {
+      "utterance": "bao lau giao hang"
+    },
+    {
+      "utterance": "giao về {province} mất mấy ngày"
+    },
+    {
+      "utterance": "giao ve {province} mat may ngay"
+    },
+    {
+      "utterance": "có giao nhanh không"
+    },
+    {
+      "utterance": "co giao nhanh khong"
+    },
+    {
+      "utterance": "freeship không"
+    },
+    {
+      "utterance": "freeship khong"
+    },
+    {
+      "utterance": "ship bao nhiêu tiền"
+    },
+    {
+      "utterance": "ship bao nhieu tien"
+    },
+    {
+      "utterance": "giao tới hà nội mất mấy ngày"
+    },
+    {
+      "utterance": "giao toi ha noi mat may ngay"
+    },
+    {
+      "utterance": "có giao toàn quốc không"
+    },
+    {
+      "utterance": "co giao toan quoc khong"
+    },
+    {
+      "utterance": "thời gian giao hàng thế nào"
+    },
+    {
+      "utterance": "thoi gian giao hang the nao"
+    },
+    {
+      "utterance": "ship nhanh được không"
+    },
+    {
+      "utterance": "ship nhanh duoc khong"
+    },
+    {
+      "utterance": "phí ship bao nhiêu giúp mình"
+    },
+    {
+      "utterance": "phi ship bao nhieu giúp mình"
+    },
+    {
+      "utterance": "bao lâu giao hàng giúp mình"
+    },
+    {
+      "utterance": "bao lau giao hang giúp mình"
+    },
+    {
+      "utterance": "giao về {province} mất mấy ngày giúp mình"
+    },
+    {
+      "utterance": "giao ve {province} mat may ngay giúp mình"
+    },
+    {
+      "utterance": "có giao nhanh không giúp mình"
+    },
+    {
+      "utterance": "co giao nhanh khong giúp mình"
+    },
+    {
+      "utterance": "freeship không giúp mình"
+    },
+    {
+      "utterance": "freeship khong giúp mình"
+    },
+    {
+      "utterance": "ship bao nhiêu tiền giúp mình"
+    },
+    {
+      "utterance": "ship bao nhieu tien giúp mình"
+    },
+    {
+      "utterance": "giao tới hà nội mất mấy ngày giúp mình"
+    },
+    {
+      "utterance": "giao toi ha noi mat may ngay giúp mình"
+    },
+    {
+      "utterance": "có giao toàn quốc không giúp mình"
+    },
+    {
+      "utterance": "co giao toan quoc khong giúp mình"
+    },
+    {
+      "utterance": "thời gian giao hàng thế nào giúp mình"
+    },
+    {
+      "utterance": "thoi gian giao hang the nao giúp mình"
+    },
+    {
+      "utterance": "ship nhanh được không giúp mình"
+    },
+    {
+      "utterance": "ship nhanh duoc khong giúp mình"
+    },
+    {
+      "utterance": "phí ship bao nhiêu giup minh"
+    },
+    {
+      "utterance": "phi ship bao nhieu giup minh"
+    },
+    {
+      "utterance": "bao lâu giao hàng giup minh"
+    },
+    {
+      "utterance": "bao lau giao hang giup minh"
+    },
+    {
+      "utterance": "giao về {province} mất mấy ngày giup minh"
+    },
+    {
+      "utterance": "giao ve {province} mat may ngay giup minh"
+    },
+    {
+      "utterance": "có giao nhanh không giup minh"
+    },
+    {
+      "utterance": "co giao nhanh khong giup minh"
+    },
+    {
+      "utterance": "freeship không giup minh"
+    },
+    {
+      "utterance": "freeship khong giup minh"
+    },
+    {
+      "utterance": "ship bao nhiêu tiền giup minh"
+    },
+    {
+      "utterance": "ship bao nhieu tien giup minh"
+    },
+    {
+      "utterance": "giao tới hà nội mất mấy ngày giup minh"
+    },
+    {
+      "utterance": "giao toi ha noi mat may ngay giup minh"
+    },
+    {
+      "utterance": "có giao toàn quốc không giup minh"
+    },
+    {
+      "utterance": "co giao toan quoc khong giup minh"
+    },
+    {
+      "utterance": "thời gian giao hàng thế nào giup minh"
+    },
+    {
+      "utterance": "thoi gian giao hang the nao giup minh"
+    },
+    {
+      "utterance": "ship nhanh được không giup minh"
+    },
+    {
+      "utterance": "ship nhanh duoc khong giup minh"
+    }
+  ],
+  "intentConfirmationSetting": null,
+  "intentClosingSetting": null,
+  "initialResponseSetting": {
+    "conditional": null,
+    "codeHook": {
+      "isActive": true,
+      "enableCodeHookInvocation": true,
+      "invocationLabel": null,
+      "postCodeHookSpecification": {
+        "failureResponse": null,
+        "failureNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "failureConditional": null,
+        "successResponse": null,
+        "successNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "FulfillIntent",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "successConditional": null,
+        "timeoutResponse": null,
+        "timeoutNextStep": {
+          "sessionAttributes": null,
+          "dialogAction": {
+            "type": "EndConversation",
+            "slotToElicit": null,
+            "suppressNextMessage": null,
+            "intentsInScope": null
+          },
+          "intent": {
+            "name": null,
+            "slots": null
+          }
+        },
+        "timeoutConditional": null
+      }
+    },
+    "nextStep": {
+      "sessionAttributes": null,
+      "dialogAction": {
+        "type": "InvokeDialogCodeHook",
+        "slotToElicit": null,
+        "suppressNextMessage": null,
+        "intentsInScope": null
+      },
+      "intent": {
+        "name": null,
+        "slots": null
+      }
+    },
+    "initialResponse": null
+  },
+  "inputContexts": null,
+  "outputContexts": null,
+  "kendraConfiguration": null,
+  "qnAIntentConfiguration": null,
+  "bedrockAgentIntentConfiguration": null,
+  "qInConnectIntentConfiguration": null,
+  "dialogCodeHook": {
+    "enabled": true
+  },
+  "fulfillmentCodeHook": {
+    "isActive": true,
+    "postFulfillmentStatusSpecification": {
+      "failureResponse": null,
+      "failureNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "successResponse": null,
+      "successNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      },
+      "timeoutResponse": null,
+      "timeoutNextStep": {
+        "sessionAttributes": null,
+        "dialogAction": {
+          "type": "EndConversation",
+          "slotToElicit": null,
+          "suppressNextMessage": null,
+          "intentsInScope": null
+        },
+        "intent": {
+          "name": null,
+          "slots": null
+        }
+      }
+    },
+    "fulfillmentUpdatesSpecification": null,
+    "enabled": true
+  },
+  "slotPriorities": [
+    {
+      "priority": 1,
+      "slotName": "province"
+    },
+    {
+      "priority": 2,
+      "slotName": "district"
+    }
+  ]
+}

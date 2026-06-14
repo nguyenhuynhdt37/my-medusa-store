@@ -1,1 +1,129 @@
-{"name":"BrandName","identifier":"3UYEIEVXZJ","description":null,"slotTypeValues":[{"synonyms":null,"sampleValue":{"value":"Apple"}},{"synonyms":null,"sampleValue":{"value":"iPhone"}},{"synonyms":null,"sampleValue":{"value":"Samsung"}},{"synonyms":null,"sampleValue":{"value":"Google"}},{"synonyms":null,"sampleValue":{"value":"Xiaomi"}},{"synonyms":null,"sampleValue":{"value":"OPPO"}},{"synonyms":null,"sampleValue":{"value":"vivo"}},{"synonyms":null,"sampleValue":{"value":"Nothing"}},{"synonyms":null,"sampleValue":{"value":"OnePlus"}}],"parentSlotTypeSignature":null,"valueSelectionSetting":{"resolutionStrategy":"ORIGINAL_VALUE","advancedRecognitionSetting":{"audioRecognitionStrategy":"UseSlotValuesAsCustomVocabulary"},"regexFilter":null}}
+{
+  "name": "BrandName",
+  "identifier": "3DUJX69Z7M",
+  "description": null,
+  "slotTypeValues": [
+    {
+      "synonyms": [
+        {
+          "value": "iphone"
+        },
+        {
+          "value": "táo"
+        },
+        {
+          "value": "apple"
+        }
+      ],
+      "sampleValue": {
+        "value": "Apple"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "ss"
+        },
+        {
+          "value": "sam sung"
+        },
+        {
+          "value": "samsung"
+        }
+      ],
+      "sampleValue": {
+        "value": "Samsung"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "mi"
+        },
+        {
+          "value": "xiaomi"
+        },
+        {
+          "value": "redmi"
+        }
+      ],
+      "sampleValue": {
+        "value": "Xiaomi"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "oppo"
+        }
+      ],
+      "sampleValue": {
+        "value": "OPPO"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "vivo"
+        }
+      ],
+      "sampleValue": {
+        "value": "Vivo"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "real me"
+        }
+      ],
+      "sampleValue": {
+        "value": "Realme"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "one plus"
+        },
+        {
+          "value": "1plus"
+        }
+      ],
+      "sampleValue": {
+        "value": "OnePlus"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "pixel"
+        },
+        {
+          "value": "google pixel"
+        }
+      ],
+      "sampleValue": {
+        "value": "Google"
+      }
+    },
+    {
+      "synonyms": [
+        {
+          "value": "nothing phone"
+        }
+      ],
+      "sampleValue": {
+        "value": "Nothing"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
+  "valueSelectionSetting": {
+    "resolutionStrategy": "TOP_RESOLUTION",
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
+  }
+}

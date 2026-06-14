@@ -1,48 +1,24 @@
 {
   "name": "order_id",
-  "identifier": "5P909ZLPMU",
+  "identifier": "9CGOUZ2O5D",
   "description": null,
-  "slotTypeName": "AMAZON.AlphaNumeric",
+  "slotTypeName": "OrderId",
   "obfuscationSetting": null,
   "valueElicitationSetting": {
     "slotCaptureSetting": {
       "codeHook": null,
       "captureResponse": null,
-      "captureNextStep": {
-        "sessionAttributes": null,
-        "dialogAction": {
-          "type": "FulfillIntent",
-          "slotToElicit": null,
-          "suppressNextMessage": null,
-          "intentsInScope": null
-        },
-        "intent": {
-          "name": null,
-          "slots": null
-        }
-      },
+      "captureNextStep": null,
       "captureConditional": null,
       "failureResponse": null,
-      "failureNextStep": {
-        "sessionAttributes": null,
-        "dialogAction": {
-          "type": "StartIntent",
-          "slotToElicit": null,
-          "suppressNextMessage": null,
-          "intentsInScope": null
-        },
-        "intent": {
-          "name": "FallbackIntent",
-          "slots": null
-        }
-      },
+      "failureNextStep": null,
       "failureConditional": null,
       "elicitationCodeHook": {
         "enableCodeHookInvocation": true,
         "invocationLabel": null
       }
     },
-    "slotConstraint": "Required",
+    "slotConstraint": "Optional",
     "promptSpecification": {
       "messageGroupsList": [
         {
@@ -50,7 +26,7 @@
             "ssmlMessage": null,
             "customPayload": null,
             "plainTextMessage": {
-              "value": "Bạn cho mình mã đơn hàng cần kiểm tra nhé."
+              "value": "Bạn vui lòng cung cấp mã đơn hàng."
             },
             "imageResponseCard": null
           },
@@ -61,7 +37,53 @@
       "allowInterrupt": true,
       "messageSelectionStrategy": "Random",
       "promptAttemptsSpecification": {
+        "Initial": {
+          "allowedInputTypes": {
+            "allowAudioInput": true,
+            "allowDTMFInput": true
+          },
+          "audioAndDTMFInputSpecification": {
+            "dtmfSpecification": {
+              "maxLength": 513,
+              "deletionCharacter": "*",
+              "endCharacter": "#",
+              "endTimeoutMs": 5000
+            },
+            "startTimeoutMs": 4000,
+            "audioSpecification": {
+              "maxLengthMs": 15000,
+              "endTimeoutMs": 640
+            }
+          },
+          "allowInterrupt": true,
+          "textInputSpecification": {
+            "startTimeoutMs": 30000
+          }
+        },
         "Retry1": {
+          "allowedInputTypes": {
+            "allowAudioInput": true,
+            "allowDTMFInput": true
+          },
+          "audioAndDTMFInputSpecification": {
+            "dtmfSpecification": {
+              "maxLength": 513,
+              "deletionCharacter": "*",
+              "endCharacter": "#",
+              "endTimeoutMs": 5000
+            },
+            "startTimeoutMs": 4000,
+            "audioSpecification": {
+              "maxLengthMs": 15000,
+              "endTimeoutMs": 640
+            }
+          },
+          "allowInterrupt": true,
+          "textInputSpecification": {
+            "startTimeoutMs": 30000
+          }
+        },
+        "Retry2": {
           "allowedInputTypes": {
             "allowAudioInput": true,
             "allowDTMFInput": true
@@ -108,52 +130,6 @@
           }
         },
         "Retry4": {
-          "allowedInputTypes": {
-            "allowAudioInput": true,
-            "allowDTMFInput": true
-          },
-          "audioAndDTMFInputSpecification": {
-            "dtmfSpecification": {
-              "maxLength": 513,
-              "deletionCharacter": "*",
-              "endCharacter": "#",
-              "endTimeoutMs": 5000
-            },
-            "startTimeoutMs": 4000,
-            "audioSpecification": {
-              "maxLengthMs": 15000,
-              "endTimeoutMs": 640
-            }
-          },
-          "allowInterrupt": true,
-          "textInputSpecification": {
-            "startTimeoutMs": 30000
-          }
-        },
-        "Retry2": {
-          "allowedInputTypes": {
-            "allowAudioInput": true,
-            "allowDTMFInput": true
-          },
-          "audioAndDTMFInputSpecification": {
-            "dtmfSpecification": {
-              "maxLength": 513,
-              "deletionCharacter": "*",
-              "endCharacter": "#",
-              "endTimeoutMs": 5000
-            },
-            "startTimeoutMs": 4000,
-            "audioSpecification": {
-              "maxLengthMs": 15000,
-              "endTimeoutMs": 640
-            }
-          },
-          "allowInterrupt": true,
-          "textInputSpecification": {
-            "startTimeoutMs": 30000
-          }
-        },
-        "Initial": {
           "allowedInputTypes": {
             "allowAudioInput": true,
             "allowDTMFInput": true
