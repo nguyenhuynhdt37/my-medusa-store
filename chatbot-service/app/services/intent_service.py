@@ -349,6 +349,8 @@ class IntentService:
             "warranty_policy",
         }
         lex_canonical = normalize_resolved_intent(request.intent_name())
+        if lex_canonical == "checkout_start" and text_intent == "payment_method":
+            text_intent = None
         if text_intent in safe_overrides and text_intent != lex_canonical:
             return text_intent, None
 
@@ -454,7 +456,11 @@ class IntentService:
             return await self.payment_or_installment(request)
         if effective_intent in {"cart_add_item", "cart_view", "cart_update", "checkout_start"}:
             trace("INTENT_SERVICE_DISPATCH_BRANCH", {"branch": "cart_checkout_guidance", "lex_intent": lex_intent, "text_intent": text_intent})
-            return await self.cart_or_checkout_guidance(request, effective_intent)
+            return await self.cart_or_checkout_guidance(
+                request,
+                effective_intent,
+                authorization_header=authorization_header,
+            )
         if effective_intent in {
             "order_cancel",
             "order_modify",
@@ -753,25 +759,241 @@ class IntentService:
         response.session_info.parameters["search_status"] = intent
         return response
 
-    async def cart_or_checkout_guidance(self, request: DialogflowCXRequest, intent: str) -> DialogflowCXResponse:
-        product_name = self._resolve_product_name(request)
-        if intent in {"cart_add_item", "checkout_start"}:
-            product_hint = f" sản phẩm {product_name}" if product_name else " sản phẩm bạn muốn mua"
-            message = (
-                f"Để đặt{product_hint}, bạn mở trang sản phẩm trên website, chọn màu/dung lượng, thêm vào giỏ rồi thanh toán. "
-                "Hiện bot chưa tự thay đổi giỏ hàng thay bạn để tránh đặt nhầm sản phẩm hoặc phiên bản."
+    async def cart_or_checkout_guidance(
+        self,
+        request: DialogflowCXRequest,
+        intent: str,
+        authorization_header: str | None = None,
+    ) -> DialogflowCXResponse:
+        required_methods = {
+            "create_cart",
+            "retrieve_cart",
+            "add_cart_line_item",
+            "update_cart_line_item",
+            "delete_cart_line_item",
+        }
+        if not all(hasattr(self.medusa_client, method) for method in required_methods):
+            product_name = self._resolve_product_name(request)
+            if intent == "cart_add_item":
+                message = f"Bạn có thể chọn phiên bản của {product_name or 'sản phẩm'} và thêm vào giỏ trực tiếp trên website."
+            elif intent == "cart_view":
+                message = "Bạn có thể xem giỏ hàng trực tiếp trên website."
+            elif intent == "cart_update":
+                message = "Bạn có thể cập nhật số lượng hoặc xoá sản phẩm trong giỏ hàng trên website."
+            else:
+                product_hint = f" cho {product_name}" if product_name else ""
+                message = f"Bạn có thể mở giỏ hàng và tiếp tục thanh toán{product_hint} tại trang checkout trên website."
+            return text_response(
+                message,
+                {
+                    "search_status": "cart_checkout_guidance",
+                    "current_product_name": product_name,
+                },
             )
-        elif intent == "cart_view":
-            message = "Bạn có thể xem giỏ hàng trực tiếp trên website. Nếu đang đăng nhập, giỏ hàng sẽ giữ các sản phẩm bạn đã chọn."
-        else:
-            message = "Bạn có thể cập nhật số lượng hoặc xoá sản phẩm trong giỏ hàng ở website trước khi thanh toán."
+        cart_id = self._resolve_cart_id(request)
+        customer_token = authorization_header or request.get_parameter(self.CUSTOMER_TOKEN_PARAMETER_NAMES)
 
+        if intent == "cart_add_item":
+            product_name = self._resolve_product_name(request)
+            if not product_name:
+                return text_response(
+                    "Bạn muốn thêm sản phẩm nào vào giỏ? Hãy ghi rõ tên máy, dung lượng và màu nếu có.",
+                    {"search_status": "cart_product_required", "current_cart_id": cart_id},
+                )
+
+            products = await self.medusa_client.list_products(query=product_name, limit=20)
+            if not products:
+                products = await self.medusa_client.list_products(limit=250)
+            product = self._find_best_product(product_name, products)
+            if not product:
+                raise ProductNotFoundError()
+
+            variant, variant_options = self._resolve_cart_variant(product, request)
+            if not variant:
+                return text_response(
+                    f"{product.get('title') or product_name} có nhiều phiên bản. Bạn chọn rõ một phiên bản: "
+                    + ", ".join(variant_options[:12]),
+                    {
+                        "search_status": "cart_variant_required",
+                        "current_cart_id": cart_id,
+                        "current_product_name": product.get("title") or product_name,
+                    },
+                )
+
+            if not cart_id:
+                cart = await self.medusa_client.create_cart(customer_token)
+                cart_id = str(cart.get("id") or "")
+            if not cart_id:
+                raise MedusaAPIError("Medusa did not return a cart id")
+
+            quantity = extract_cart_quantity(request) or 1
+            cart = await self.medusa_client.add_cart_line_item(
+                cart_id,
+                str(variant.get("id")),
+                quantity,
+                customer_token,
+            )
+            variant_title = str(variant.get("title") or "").strip()
+            title = str(product.get("title") or product_name)
+            return text_response(
+                f"Đã thêm {quantity} x {title}{f' ({variant_title})' if variant_title else ''} vào giỏ. "
+                f"Giỏ hiện có {cart_item_count(cart)} sản phẩm.",
+                {
+                    "search_status": "cart_item_added",
+                    "current_cart_id": cart_id,
+                    "current_product_name": title,
+                    "current_variant_id": variant.get("id"),
+                },
+            )
+
+        if not cart_id:
+            return text_response(
+                "Giỏ hàng hiện đang trống. Bạn có thể nhắn tên sản phẩm muốn thêm vào giỏ.",
+                {"search_status": "cart_checkout_guidance", "current_cart_id": None},
+            )
+
+        cart = await self.medusa_client.retrieve_cart(cart_id, customer_token)
+        if not cart or not cart.get("items"):
+            return text_response(
+                "Giỏ hàng hiện đang trống. Bạn có thể nhắn tên sản phẩm muốn thêm vào giỏ.",
+                {"search_status": "cart_empty", "current_cart_id": cart_id},
+            )
+
+        if intent == "cart_view":
+            return self._cart_view_response(cart, cart_id)
+
+        if intent == "checkout_start":
+            checkout_url = f"{settings.storefront_base_url.rstrip('/')}/{settings.storefront_country_code}/checkout"
+            return text_response(
+                f"Giỏ của bạn có {cart_item_count(cart)} sản phẩm. Bạn tiếp tục nhập địa chỉ, chọn giao hàng và thanh toán tại {checkout_url}",
+                {
+                    "search_status": "checkout_ready",
+                    "current_cart_id": cart_id,
+                    "checkout_url": checkout_url,
+                },
+            )
+
+        line_item = self._resolve_cart_line_item(cart, request)
+        if not line_item:
+            return text_response(
+                "Bạn hãy ghi rõ sản phẩm muốn cập nhật hoặc xoá khỏi giỏ.",
+                {"search_status": "cart_item_required", "current_cart_id": cart_id},
+            )
+
+        if is_cart_remove_request(request.text):
+            updated_cart = await self.medusa_client.delete_cart_line_item(
+                cart_id,
+                str(line_item.get("id")),
+                customer_token,
+            )
+            return text_response(
+                f"Đã xoá {cart_line_title(line_item)} khỏi giỏ. Giỏ còn {cart_item_count(updated_cart)} sản phẩm.",
+                {"search_status": "cart_item_removed", "current_cart_id": cart_id},
+            )
+
+        quantity = extract_cart_quantity(request)
+        if quantity is None:
+            return text_response(
+                "Bạn muốn đổi số lượng thành bao nhiêu?",
+                {"search_status": "cart_quantity_required", "current_cart_id": cart_id},
+            )
+        updated_cart = await self.medusa_client.update_cart_line_item(
+            cart_id,
+            str(line_item.get("id")),
+            quantity,
+            customer_token,
+        )
         return text_response(
-            message,
-            {
-                "search_status": "cart_checkout_guidance",
-                "current_product_name": product_name,
-            },
+            f"Đã cập nhật {cart_line_title(line_item)} thành {quantity} sản phẩm. Giỏ hiện có {cart_item_count(updated_cart)} sản phẩm.",
+            {"search_status": "cart_item_updated", "current_cart_id": cart_id},
+        )
+
+    @staticmethod
+    def _resolve_cart_id(request: DialogflowCXRequest) -> str | None:
+        request_attributes = getattr(request, "request_attributes", None) or {}
+        value = request_attributes.get("cart_id") or request.get_parameter(["current_cart_id", "cart_id", "cartId"])
+        return str(value).strip() if value else None
+
+    @staticmethod
+    def _resolve_cart_variant(
+        product: dict[str, Any],
+        request: DialogflowCXRequest,
+    ) -> tuple[dict[str, Any] | None, list[str]]:
+        variants = [variant for variant in product.get("variants") or [] if variant.get("id")]
+        options = [str(variant.get("title") or variant.get("sku") or variant.get("id")) for variant in variants]
+        if len(variants) == 1:
+            return variants[0], options
+
+        storage = request.get_parameter(["storage", "capacity"])
+        color = request.get_parameter(["color", "colour"])
+        normalized_text = normalize_text(request.text or "")
+        if not storage:
+            storage_match = re.search(r"\b(\d{2,4})\s*(gb|tb)\b", normalized_text)
+            if storage_match:
+                storage = f"{storage_match.group(1)}{storage_match.group(2)}"
+        color_aliases = {
+            "den": "black",
+            "black": "black",
+            "trang": "white",
+            "white": "white",
+            "xanh": "ultramarine",
+            "ultramarine": "ultramarine",
+            "lavender": "lavender",
+            "tim": "lavender",
+            "sage": "sage",
+        }
+        normalized_color = normalize_text(color or "")
+        if normalized_color:
+            color = color_aliases.get(normalized_color, normalized_color)
+        else:
+            for alias, canonical in color_aliases.items():
+                if re.search(rf"\b{re.escape(alias)}\b", normalized_text):
+                    color = canonical
+                    break
+        requirements = [normalize_text(value) for value in (storage, color) if value]
+        matches = []
+        for variant in variants:
+            searchable = normalize_text(
+                " ".join(
+                    [
+                        str(variant.get("title") or ""),
+                        str(variant.get("sku") or ""),
+                        " ".join(str(option.get("value") or "") for option in variant.get("options") or []),
+                    ]
+                )
+            )
+            if requirements and all(value in searchable for value in requirements):
+                matches.append(variant)
+            elif not requirements and searchable and searchable in normalized_text:
+                matches.append(variant)
+        return (matches[0] if len(matches) == 1 else None), options
+
+    @staticmethod
+    def _resolve_cart_line_item(cart: dict[str, Any], request: DialogflowCXRequest) -> dict[str, Any] | None:
+        items = cart.get("items") or []
+        if len(items) == 1:
+            return items[0]
+        product_name = request.get_parameter(IntentService.PRODUCT_PARAMETER_NAMES) or extract_product_name_direct(request.text)
+        if not product_name:
+            return None
+        normalized_name = normalize_text(product_name)
+        matches = [item for item in items if normalized_name in normalize_text(cart_line_title(item))]
+        return matches[0] if len(matches) == 1 else None
+
+    @staticmethod
+    def _cart_view_response(cart: dict[str, Any], cart_id: str) -> DialogflowCXResponse:
+        items = cart.get("items") or []
+        lines = ["Giỏ hàng của bạn:"]
+        for item in items:
+            quantity = int(item.get("quantity") or 0)
+            total = item.get("total")
+            currency = cart.get("currency_code") or "vnd"
+            price = f" - {format_money(total, currency)}" if total is not None else ""
+            lines.append(f"- {quantity} x {cart_line_title(item)}{price}")
+        lines.append(f"Tổng số lượng: {cart_item_count(cart)} sản phẩm.")
+        return text_response(
+            "\n".join(lines),
+            {"search_status": "cart_view_success", "current_cart_id": cart_id},
         )
 
     async def aftercare_handoff(self, request: DialogflowCXRequest, intent: str) -> DialogflowCXResponse:
@@ -2539,6 +2761,44 @@ def first_image_url(product: dict[str, Any]) -> str | None:
     if not images:
         return None
     return images[0].get("url")
+
+
+def extract_cart_quantity(request: DialogflowCXRequest) -> int | None:
+    text = normalize_text(request.text or "")
+    explicit_patterns = (
+        r"\b(\d{1,2})\s*(?:cai|chiec|may|san pham)\b",
+        r"\b(?:so luong|qty)\s*(\d{1,2})\b",
+        r"\b(?:len|thanh|con|giam|tang)\D{0,8}(\d{1,2})\b",
+        r"\b(?:mua|dat|them)\s+(\d{1,2})\b",
+    )
+    for pattern in explicit_patterns:
+        match = re.search(pattern, text)
+        if match:
+            return max(1, min(99, int(match.group(1))))
+
+    raw_value = request.get_parameter(["quantity", "qty", "amount"])
+    if raw_value and not text:
+        match = re.search(r"\d+", str(raw_value))
+        if match:
+            return max(1, min(99, int(match.group(0))))
+    return None
+
+
+def is_cart_remove_request(text: str | None) -> bool:
+    normalized = normalize_text(text or "")
+    return any(keyword in normalized for keyword in ("xoa", "bo khoi gio", "bo san pham", "khong lay"))
+
+
+def cart_line_title(item: dict[str, Any]) -> str:
+    product_title = str(item.get("product_title") or (item.get("product") or {}).get("title") or item.get("title") or "Sản phẩm")
+    variant_title = str(item.get("variant_title") or (item.get("variant") or {}).get("title") or "").strip()
+    if variant_title and normalize_text(variant_title) not in normalize_text(product_title):
+        return f"{product_title} ({variant_title})"
+    return product_title
+
+
+def cart_item_count(cart: dict[str, Any]) -> int:
+    return sum(int(item.get("quantity") or 0) for item in cart.get("items") or [])
 
 
 def build_discount_text(prices: list[dict[str, Any]]) -> str:

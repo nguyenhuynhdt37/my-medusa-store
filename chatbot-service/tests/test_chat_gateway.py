@@ -58,6 +58,17 @@ async def test_success_returns_lex_response_without_rewriting():
 
 
 @pytest.mark.asyncio
+async def test_cart_id_is_forwarded_to_lex_request_attributes():
+    lex_client = FakeLexClient(successful_lex_response())
+    body = request()
+    body.customer_context["cart_id"] = "cart_123"
+
+    await process_ai_request(body, authorization=None, lex_client=lex_client)
+
+    assert lex_client.calls[0]["request_attributes"]["cart_id"] == "cart_123"
+
+
+@pytest.mark.asyncio
 async def test_fallback_intent_returns_200():
     lex_client = FakeLexClient(
         {

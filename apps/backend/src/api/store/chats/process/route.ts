@@ -17,10 +17,12 @@ const callAiService = async ({
   conversation,
   message,
   authorization,
+  cartId,
 }: {
   conversation: any
   message: string
   authorization?: string
+  cartId?: string | null
 }) => {
   const response = await fetch(`${aiServiceUrl()}/ai/process`, {
     method: "POST",
@@ -36,6 +38,7 @@ const callAiService = async ({
         guest_id: conversation.guest_id,
         channel: conversation.channel || "WEB",
         external_user_id: conversation.external_user_id || null,
+        cart_id: cartId || null,
       },
       session_context: {
         status: conversation.status,
@@ -62,6 +65,7 @@ export const POST = async (
     channel: z.enum(["WEB", "MESSENGER"]).optional(),
     external_user_id: z.string().optional().nullable(),
     external_message_id: z.string().optional().nullable(),
+    cart_id: z.string().optional().nullable(),
     metadata: z.any().optional(),
   })
 
@@ -192,6 +196,7 @@ export const POST = async (
       conversation,
       message: data.message,
       authorization,
+      cartId: data.cart_id,
     })
   } catch (err) {
     console.error(`${LOG_PREFIX} ai service failed`, {
@@ -293,6 +298,7 @@ export const POST = async (
     escalation,
     intent: aiResult.intent,
     confidence: aiResult.confidence,
+    cartId: aiResult.metadata?.session?.attributes?.current_cart_id || data.cart_id || null,
     messages: savedBotMessages,
   })
 }

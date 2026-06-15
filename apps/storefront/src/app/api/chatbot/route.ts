@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
   const publishableKey = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
   const cookieStore = await cookies()
   const customerToken = cookieStore.get("_medusa_jwt")?.value
+  const cartId = cookieStore.get("_medusa_cart_id")?.value
   const guestId =
     sanitize(body.guestId, 128) ||
     sanitize(cookieStore.get("chat_guest_id")?.value, 128) ||
@@ -56,11 +57,23 @@ export async function POST(request: NextRequest) {
         message,
         guest_id: guestId,
         conversation_id: conversationId,
+        cart_id: cartId || null,
         channel: "WEB",
       }),
     })
 
     const data = await response.json().catch(() => null)
+
+    const nextResponse = NextResponse.json(data, { status: response.status })
+    if (response.ok && data?.cartId && data.cartId !== cartId) {
+      nextResponse.cookies.set("_medusa_cart_id", data.cartId, {
+        maxAge: 60 * 60 * 24 * 7,
+        httpOnly: true,
+        path: "/",
+        sameSite: (process.env.COOKIE_SAME_SITE || "lax") as "lax" | "strict" | "none",
+        secure: process.env.COOKIE_SECURE === "true",
+      })
+    }
 
     console.info(`${LOG_PREFIX} Medusa chat process response`, {
       ok: response.ok,
@@ -71,7 +84,7 @@ export async function POST(request: NextRequest) {
       intent: data?.intent,
     })
 
-    return NextResponse.json(data, { status: response.status })
+    return nextResponse
   } catch (err) {
     console.error(`${LOG_PREFIX} proxy failed`, {
       guest_id: guestId,

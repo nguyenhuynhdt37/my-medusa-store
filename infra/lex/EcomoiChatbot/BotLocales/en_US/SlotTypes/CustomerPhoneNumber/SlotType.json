@@ -1,12 +1,12 @@
 {
-  "name": "Quantity",
-  "identifier": "4IX9FDBGPM",
+  "name": "CustomerPhoneNumber",
+  "identifier": "2C1D7KA544",
   "description": null,
   "slotTypeValues": [
     {
       "synonyms": null,
       "sampleValue": {
-        "value": "1"
+        "value": "0912345678"
       }
     }
   ],

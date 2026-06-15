@@ -230,6 +230,119 @@ def make_request_with_session(intent: str, parameters: dict, session: dict, text
     )
 
 
+class CartFakeMedusaClient(FakeMedusaClient):
+    def __init__(self):
+        self.cart = {"id": "cart_123", "currency_code": "vnd", "items": []}
+
+    async def list_products(self, query=None, limit=50):
+        return [
+            {
+                "id": "prod_iphone16",
+                "title": "iPhone 16",
+                "variants": [
+                    {"id": "variant_128_black", "title": "128GB / Black", "options": [{"value": "128GB"}, {"value": "Black"}]},
+                    {"id": "variant_256_black", "title": "256GB / Black", "options": [{"value": "256GB"}, {"value": "Black"}]},
+                ],
+            }
+        ]
+
+    async def create_cart(self, customer_access_token=None):
+        return self.cart
+
+    async def retrieve_cart(self, cart_id, customer_access_token=None):
+        return self.cart
+
+    async def add_cart_line_item(self, cart_id, variant_id, quantity, customer_access_token=None):
+        self.cart["items"] = [
+            {
+                "id": "item_1",
+                "product_title": "iPhone 16",
+                "variant_title": "256GB / Black",
+                "variant_id": variant_id,
+                "quantity": quantity,
+                "total": 44980000,
+            }
+        ]
+        return self.cart
+
+    async def update_cart_line_item(self, cart_id, line_item_id, quantity, customer_access_token=None):
+        self.cart["items"][0]["quantity"] = quantity
+        return self.cart
+
+    async def delete_cart_line_item(self, cart_id, line_item_id, customer_access_token=None):
+        self.cart["items"] = []
+        return self.cart
+
+
+@pytest.mark.asyncio
+async def test_cart_add_creates_cart_and_adds_selected_variant():
+    service = IntentService(CartFakeMedusaClient())
+    request = make_request(
+        "CartAddItemIntent",
+        {"product_name": "iPhone 16", "storage": "256GB", "color": "Black", "quantity": "2"},
+        text="thêm 2 iphone 16 bản 256gb màu đen vào giỏ",
+    )
+
+    response = await service.handle(request)
+
+    assert response.session_info.parameters["search_status"] == "cart_item_added"
+    assert response.session_info.parameters["current_cart_id"] == "cart_123"
+    assert "2 x iPhone 16" in response.fulfillment_response.messages[0].text.text[0]
+
+
+@pytest.mark.asyncio
+async def test_cart_add_infers_vietnamese_variant_from_text():
+    service = IntentService(CartFakeMedusaClient())
+    request = make_request(
+        "CartAddItemIntent",
+        {"product_name": "iPhone 16"},
+        text="thêm iphone 16 bản 256gb màu đen vào giỏ",
+    )
+
+    response = await service.handle(request)
+
+    assert response.session_info.parameters["search_status"] == "cart_item_added"
+    assert response.session_info.parameters["current_variant_id"] == "variant_256_black"
+    assert "Đã thêm 1 x iPhone 16" in response.fulfillment_response.messages[0].text.text[0]
+
+
+@pytest.mark.asyncio
+async def test_cart_requires_variant_when_product_has_multiple_variants():
+    service = IntentService(CartFakeMedusaClient())
+
+    response = await service.handle(
+        make_request("CartAddItemIntent", {"product_name": "iPhone 16"}, text="thêm iphone 16 vào giỏ")
+    )
+
+    assert response.session_info.parameters["search_status"] == "cart_variant_required"
+    assert "256GB / Black" in response.fulfillment_response.messages[0].text.text[0]
+
+
+@pytest.mark.asyncio
+async def test_cart_view_update_and_remove_use_existing_cart():
+    client = CartFakeMedusaClient()
+    await client.add_cart_line_item("cart_123", "variant_256_black", 2)
+    service = IntentService(client)
+
+    view_request = make_request("CartViewIntent", {}, text="xem giỏ hàng")
+    view_request.request_attributes["cart_id"] = "cart_123"
+    view_response = await service.handle(view_request)
+    assert view_response.session_info.parameters["search_status"] == "cart_view_success"
+    assert "2 x iPhone 16" in view_response.fulfillment_response.messages[0].text.text[0]
+
+    update_request = make_request("CartUpdateIntent", {"quantity": "1"}, text="giảm còn 1 cái")
+    update_request.request_attributes["cart_id"] = "cart_123"
+    update_response = await service.handle(update_request)
+    assert update_response.session_info.parameters["search_status"] == "cart_item_updated"
+    assert client.cart["items"][0]["quantity"] == 1
+
+    remove_request = make_request("CartUpdateIntent", {}, text="bỏ sản phẩm này đi")
+    remove_request.request_attributes["cart_id"] = "cart_123"
+    remove_response = await service.handle(remove_request)
+    assert remove_response.session_info.parameters["search_status"] == "cart_item_removed"
+    assert client.cart["items"] == []
+
+
 @pytest.mark.asyncio
 async def test_product_price_response():
     service = IntentService(FakeMedusaClient())
@@ -1113,4 +1226,3 @@ async def test_failsafe_fixes_in_intent_service():
     assert "So sánh nhanh" in message_comp
     assert "iPhone 16" in message_comp
     assert "Samsung Galaxy S26 Plus" in message_comp
-

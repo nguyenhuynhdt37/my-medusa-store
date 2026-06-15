@@ -596,3 +596,9 @@ def classify_intent(text: str | None) -> IntentMatch | None:
 def infer_intent_from_text(text: str | None) -> str | None:
     match = classify_intent(text)
     return match.intent if match else None
+    return None
+
+
+def infer_intent_from_text(text: str | None) -> str | None:
+    match = classify_intent(text)
+    return match.intent if match else None

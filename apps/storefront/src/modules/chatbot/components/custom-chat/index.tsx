@@ -877,12 +877,12 @@ const CustomChat = () => {
       ws.onclose = () => {
         chatDebug("[WS_CLOSED] Connection closed")
         setWsStatus("disconnected")
-        
+
         // Exponential backoff reconnect
         reconnectAttempts++
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts - 1), 30000) // 1s, 2s, 4s, 8s, 16s, 30s
         chatDebug(`[WS_RECONNECT] Attempting reconnect in ${delay}ms (attempt ${reconnectAttempts})`)
-        
+
         if (reconnectTimer) clearTimeout(reconnectTimer)
         reconnectTimer = setTimeout(connect, delay)
       }

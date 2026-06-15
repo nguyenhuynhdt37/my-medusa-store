@@ -2,7 +2,7 @@
   "name": "phone_number",
   "identifier": "DPNN9GGC38",
   "description": null,
-  "slotTypeName": "PhoneNumber",
+  "slotTypeName": "CustomerPhoneNumber",
   "obfuscationSetting": null,
   "valueElicitationSetting": {
     "slotCaptureSetting": {

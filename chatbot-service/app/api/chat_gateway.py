@@ -159,6 +159,7 @@ async def process_ai_request(
                 "customer_id": str(body.customer_context.get("customer_id") or ""),
                 "guest_id": str(body.customer_context.get("guest_id") or ""),
                 "external_user_id": str(external_user_id or ""),
+                "cart_id": str(body.customer_context.get("cart_id") or ""),
                 "channel": channel,
                 "session_id": session_id,
                 "original_text": text,

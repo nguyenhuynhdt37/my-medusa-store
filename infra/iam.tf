@@ -1,3 +1,5 @@
+# --- CloudWatch log của EC2 ---
+# Lưu log bootstrap/Nginx theo retention đã cấu hình.
 resource "aws_cloudwatch_log_group" "host" {
   name              = "/${var.project_name}/${var.environment}/host"
   retention_in_days = var.cloudwatch_log_retention_days
@@ -7,6 +9,8 @@ resource "aws_cloudwatch_log_group" "host" {
   }
 }
 
+# --- IAM role của EC2 ---
+# Cho phép EC2 nhận temporary credentials qua instance profile, không lưu access key trên máy.
 resource "aws_iam_role" "ec2" {
   name = "${local.name_prefix}-ec2"
   assume_role_policy = jsonencode({
@@ -23,11 +27,15 @@ resource "aws_iam_role" "ec2" {
   }
 }
 
+# --- Quản trị EC2 qua Systems Manager ---
+# Gắn managed policy để có thể dùng SSM Session Manager thay cho SSH.
 resource "aws_iam_role_policy_attachment" "ssm" {
   role       = aws_iam_role.ec2.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+# --- Quyền ghi log CloudWatch ---
+# Giới hạn quyền ghi vào log group của stack; chỉ quyền discovery dùng wildcard.
 resource "aws_iam_role_policy" "cloudwatch_logs" {
   name = "${local.name_prefix}-cloudwatch-logs"
   role = aws_iam_role.ec2.id
@@ -54,6 +62,8 @@ resource "aws_iam_role_policy" "cloudwatch_logs" {
   })
 }
 
+# --- Quyền đọc deployment artifact tùy chọn ---
+# Chỉ tạo policy khi có S3 bucket ARN; EC2 chỉ được list bucket và get object.
 resource "aws_iam_role_policy" "deployment_s3" {
   count = var.deployment_s3_bucket_arn == null ? 0 : 1
 
@@ -78,6 +88,8 @@ resource "aws_iam_role_policy" "deployment_s3" {
   })
 }
 
+# --- Quyền gọi Lex runtime ---
+# FastAPI trên EC2 chỉ được RecognizeText với bot/alias production đã cấu hình.
 resource "aws_iam_role_policy" "lex_runtime" {
   name = "${local.name_prefix}-lex-runtime"
   role = aws_iam_role.ec2.id
@@ -92,6 +104,8 @@ resource "aws_iam_role_policy" "lex_runtime" {
   })
 }
 
+# --- Instance profile ---
+# Gắn IAM role bên trên vào EC2.
 resource "aws_iam_instance_profile" "ec2" {
   name = "${local.name_prefix}-ec2"
   role = aws_iam_role.ec2.name

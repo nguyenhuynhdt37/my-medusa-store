@@ -147,6 +147,83 @@ class MedusaClient:
             self.region_id = regions[0].get("id")
         return self.region_id
 
+    async def create_cart(self, customer_access_token: str | None = None) -> dict[str, Any]:
+        headers = self._store_headers()
+        if customer_access_token:
+            headers["Authorization"] = format_bearer_token(customer_access_token)
+        region_id = await self.get_region_id()
+        body = {"region_id": region_id} if region_id else {}
+        data = await self._request("POST", "/store/carts", headers=headers, json_body=body)
+        return data.get("cart") or {}
+
+    async def retrieve_cart(
+        self,
+        cart_id: str,
+        customer_access_token: str | None = None,
+    ) -> dict[str, Any] | None:
+        headers = self._store_headers()
+        if customer_access_token:
+            headers["Authorization"] = format_bearer_token(customer_access_token)
+        data = await self._request(
+            "GET",
+            f"/store/carts/{cart_id}",
+            params={"fields": "*items,*items.product,*items.variant,*items.variant.options,+items.total,*region"},
+            headers=headers,
+        )
+        return data.get("cart")
+
+    async def add_cart_line_item(
+        self,
+        cart_id: str,
+        variant_id: str,
+        quantity: int,
+        customer_access_token: str | None = None,
+    ) -> dict[str, Any]:
+        headers = self._store_headers()
+        if customer_access_token:
+            headers["Authorization"] = format_bearer_token(customer_access_token)
+        data = await self._request(
+            "POST",
+            f"/store/carts/{cart_id}/line-items",
+            headers=headers,
+            json_body={"variant_id": variant_id, "quantity": quantity},
+        )
+        return data.get("cart") or {}
+
+    async def update_cart_line_item(
+        self,
+        cart_id: str,
+        line_item_id: str,
+        quantity: int,
+        customer_access_token: str | None = None,
+    ) -> dict[str, Any]:
+        headers = self._store_headers()
+        if customer_access_token:
+            headers["Authorization"] = format_bearer_token(customer_access_token)
+        data = await self._request(
+            "POST",
+            f"/store/carts/{cart_id}/line-items/{line_item_id}",
+            headers=headers,
+            json_body={"quantity": quantity},
+        )
+        return data.get("cart") or {}
+
+    async def delete_cart_line_item(
+        self,
+        cart_id: str,
+        line_item_id: str,
+        customer_access_token: str | None = None,
+    ) -> dict[str, Any]:
+        headers = self._store_headers()
+        if customer_access_token:
+            headers["Authorization"] = format_bearer_token(customer_access_token)
+        data = await self._request(
+            "DELETE",
+            f"/store/carts/{cart_id}/line-items/{line_item_id}",
+            headers=headers,
+        )
+        return data.get("parent") or data.get("cart") or {}
+
     async def find_order(self, order_code: str) -> dict[str, Any] | None:
         return await self.find_customer_order(order_code, customer_access_token=None)
 

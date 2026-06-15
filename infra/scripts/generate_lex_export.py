@@ -259,6 +259,7 @@ def slot_payload(slot: dict) -> dict:
 
 
 def slot_type_payload(name: str, values: list[tuple[str, list[str]]], *, parent: str | None = None, regex: str | None = None) -> dict:
+    expand = name in {"OrderId", "CustomerPhoneNumber", "Quantity"}
     payload = {
         "name": name,
         "identifier": identifier(f"slot-type:{name}"),
@@ -272,7 +273,7 @@ def slot_type_payload(name: str, values: list[tuple[str, list[str]]], *, parent:
         ],
         "parentSlotTypeSignature": parent,
         "valueSelectionSetting": {
-            "resolutionStrategy": "ORIGINAL_VALUE" if regex or parent else "TOP_RESOLUTION",
+            "resolutionStrategy": "ORIGINAL_VALUE" if regex or parent or expand else "TOP_RESOLUTION",
             "advancedRecognitionSetting": {
                 "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
             } if not parent else None,
@@ -368,7 +369,7 @@ SLOT_TYPES = {
     "PromoCode": [("WELCOME10", []), ("ANDROID15", []), ("PHONE500K", []), ("FREESHIP", []), ("PREORDER17", [])],
     "InstallmentTerm": [("3 tháng", ["3 thang"]), ("6 tháng", ["6 thang"]), ("9 tháng", ["9 thang"]), ("12 tháng", ["12 thang"])],
     "OrderId": [],
-    "PhoneNumber": [],
+    "CustomerPhoneNumber": [],
     "Address": [("địa chỉ mới", ["dia chi moi", "nhà riêng", "công ty"])],
     "Quantity": [],
 }
@@ -380,7 +381,7 @@ def slot(name: str, slot_type: str, prompt: str, constraint: str = "Optional") -
 
 INTENTS = [
     ("GreetingIntent", "Chào hỏi và mở hội thoại", ["xin chào", "hello", "hi shop", "chào shop", "shop ơi"], []),
-    ("ProductSearchIntent", "Tìm điện thoại theo tên, hãng, nhu cầu, ngân sách", ["tìm {product_name}", "có điện thoại {brand} không", "tìm máy {need}", "điện thoại tầm {budget}", "shop có bán {product_name} không", "shop có {product_name} không"], [slot("product_name", "ProductModel", "Bạn muốn tìm mẫu điện thoại nào?"), slot("brand", "BrandName", "Bạn muốn tìm hãng nào?"), slot("need", "UsageNeed", "Bạn dùng máy cho nhu cầu gì?"), slot("budget", "Budget", "Ngân sách của bạn khoảng bao nhiêu?")]),
+    ("ProductSearchIntent", "Tìm điện thoại theo tên, hãng, nhu cầu, ngân sách", ["tôi muốn mua điện thoại", "muốn mua điện thoại", "tìm điện thoại", "mua điện thoại", "tìm {product_name}", "có điện thoại {brand} không", "tìm máy {need}", "điện thoại tầm {budget}", "shop có bán {product_name} không", "shop có {product_name} không"], [slot("product_name", "ProductModel", "Bạn muốn tìm mẫu điện thoại nào?"), slot("brand", "BrandName", "Bạn muốn tìm hãng nào?"), slot("need", "UsageNeed", "Bạn dùng máy cho nhu cầu gì?"), slot("budget", "Budget", "Ngân sách của bạn khoảng bao nhiêu?")]),
     ("ProductRecommendationIntent", "Tư vấn chọn điện thoại", ["tư vấn điện thoại", "gợi ý máy cho mình", "chọn giúp máy {need}", "mua máy tầm {budget}", "recommend điện thoại {brand}"], [slot("brand", "BrandName", "Bạn ưu tiên hãng nào?"), slot("budget", "Budget", "Ngân sách của bạn khoảng bao nhiêu?"), slot("need", "UsageNeed", "Bạn ưu tiên nhu cầu nào?")]),
     ("ProductPriceIntent", "Tra giá sản phẩm", ["giá {product_name}", "{product_name} bao nhiêu tiền", "bảng giá {brand}", "giá bản {storage} của {product_name}", "máy {product_name} giá sao"], [slot("product_name", "ProductModel", "Bạn muốn hỏi giá mẫu nào?"), slot("brand", "BrandName", "Bạn muốn xem giá hãng nào?"), slot("storage", "Storage", "Bạn muốn hỏi dung lượng nào?"), slot("color", "Color", "Bạn muốn hỏi màu nào?")]),
     ("ProductAvailabilityIntent", "Kiểm tra còn hàng theo mẫu, màu, dung lượng", ["{product_name} còn hàng không", "còn màu {color} của {product_name} không", "bản {storage} còn không", "shop còn máy này không", "có sẵn {product_name} không"], [slot("product_name", "ProductModel", "Bạn muốn kiểm tra mẫu nào?", "Required"), slot("color", "Color", "Bạn muốn màu nào?"), slot("storage", "Storage", "Bạn muốn dung lượng nào?"), slot("quantity", "Quantity", "Bạn cần bao nhiêu máy?")]),
@@ -402,7 +403,7 @@ INTENTS = [
     ("OrderDetailIntent", "Xem chi tiết đơn hàng", ["chi tiết đơn {order_id}", "đơn này gồm những gì", "xem thông tin đơn hàng", "tổng tiền đơn {order_id}", "đơn hàng mua sản phẩm gì"], [slot("order_id", "OrderId", "Bạn vui lòng cung cấp mã đơn hàng.")]),
     ("OrderHistoryIntent", "Xem lịch sử đơn hàng", ["lịch sử đơn hàng", "các đơn đã mua", "tôi từng mua gì", "xem đơn gần đây", "danh sách đơn của tôi"], []),
     ("OrderCancelIntent", "Yêu cầu huỷ đơn", ["hủy đơn {order_id}", "tôi muốn hủy đơn {order_id}", "không mua nữa", "cancel đơn hàng", "hủy giúp đơn này", "đơn chưa giao thì hủy được không"], [slot("order_id", "OrderId", "Bạn muốn huỷ mã đơn nào?")]),
-    ("OrderModifyIntent", "Đổi thông tin đơn hàng", ["đổi địa chỉ đơn {order_id}", "sửa số điện thoại nhận hàng", "đổi màu sản phẩm trong đơn", "thay đổi đơn hàng", "sửa đơn giúp mình"], [slot("order_id", "OrderId", "Bạn muốn sửa mã đơn nào?"), slot("address", "Address", "Bạn muốn đổi sang địa chỉ nào?"), slot("phone_number", "PhoneNumber", "Bạn muốn dùng số điện thoại nào?")]),
+    ("OrderModifyIntent", "Đổi thông tin đơn hàng", ["đổi địa chỉ đơn {order_id}", "sửa số điện thoại nhận hàng", "đổi màu sản phẩm trong đơn", "thay đổi đơn hàng", "sửa đơn giúp mình"], [slot("order_id", "OrderId", "Bạn muốn sửa mã đơn nào?"), slot("address", "Address", "Bạn muốn đổi sang địa chỉ nào?"), slot("phone_number", "CustomerPhoneNumber", "Bạn muốn dùng số điện thoại nào?")]),
     ("ReturnRequestIntent", "Yêu cầu đổi trả", ["trả hàng như thế nào", "đổi máy lỗi", "muốn hoàn hàng", "đổi trả trong mấy ngày", "máy lỗi cần trả"], [slot("order_id", "OrderId", "Bạn cung cấp mã đơn để shop kiểm tra nhé."), slot("product_name", "ProductModel", "Bạn muốn đổi trả sản phẩm nào?")]),
     ("RefundStatusIntent", "Hỏi hoàn tiền", ["khi nào hoàn tiền", "tiền refund về chưa", "trạng thái hoàn tiền đơn {order_id}", "shop hoàn tiền giúp", "đã nhận refund chưa"], [slot("order_id", "OrderId", "Bạn cung cấp mã đơn giúp mình nhé.")]),
     ("WarrantyPolicyIntent", "Chính sách bảo hành", ["bảo hành {product_name} bao lâu", "chính sách bảo hành", "máy lỗi bảo hành sao", "đổi máy trong bao lâu", "{product_name} có bảo hành không"], [slot("product_name", "ProductModel", "Bạn muốn hỏi bảo hành mẫu nào?")]),
@@ -571,7 +572,7 @@ def main() -> None:
             "name": "English (US)",
             "identifier": "en_US",
             "version": None,
-            "description": "Vietnamese training data deployed on en_US because vi_VN is unavailable in the current Lex export.",
+            "description": "Vietnamese utterance training data for the en_US Lex locale.",
             "voiceSettings": {"voiceId": "Danielle", "engine": "neural"},
             "nluConfidenceThreshold": 0.4,
             "generativeAISettings": None,
@@ -583,11 +584,11 @@ def main() -> None:
         parent = None
         regex = None
         if name == "OrderId":
-            parent, regex = "AMAZON.AlphaNumeric", "[0-9]{4,24}"
-        elif name == "PhoneNumber":
-            parent, regex = "AMAZON.AlphaNumeric", "[0-9]{8,15}"
+            values = [("12345", [])]
+        elif name == "CustomerPhoneNumber":
+            values = [("0912345678", [])]
         elif name == "Quantity":
-            parent, regex = "AMAZON.AlphaNumeric", "[1-9][0-9]?"
+            values = [("1", [])]
         write_json(LOCALE_ROOT / "SlotTypes" / name / "SlotType.json", slot_type_payload(name, values, parent=parent, regex=regex))
 
     for name, description, utterances, slots in INTENTS:

@@ -5,6 +5,11 @@ exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&
 
 export DEBIAN_FRONTEND=noninteractive
 
+# VPC hiện chỉ cấp IPv4; ép APT không chọn địa chỉ mirror IPv6 rồi bị timeout.
+cat >/etc/apt/apt.conf.d/99force-ipv4 <<'EOF'
+Acquire::ForceIPv4 "true";
+EOF
+
 retry() {
   local attempts=0
   local max_attempts=5
@@ -20,7 +25,7 @@ retry() {
 
 retry apt-get update
 retry apt-get upgrade -y
-retry apt-get install -y ca-certificates certbot curl git gnupg jq nginx snapd unzip
+retry apt-get install -y ca-certificates curl git gnupg jq nginx snapd unzip
 
 install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -36,6 +41,13 @@ retry apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plu
 systemctl enable --now docker
 systemctl enable --now nginx
 usermod -aG docker ubuntu
+
+if ! command -v certbot >/dev/null 2>&1; then
+  snap install core
+  snap refresh core
+  snap install --classic certbot
+  ln -sfn /snap/bin/certbot /usr/local/bin/certbot
+fi
 
 if ! command -v amazon-ssm-agent >/dev/null 2>&1; then
   snap install amazon-ssm-agent --classic
@@ -400,4 +412,3 @@ Backend ports must bind to 127.0.0.1 or an internal Docker network.
 EOF
 
 echo "Bootstrap completed successfully."
-

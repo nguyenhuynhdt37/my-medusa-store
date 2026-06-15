@@ -1,6 +1,6 @@
 # Lex V2 Intents for Ecomoi Phone Store
 
-Bot locale: `Vietnamese (vi_VN)`
+Bot locale: `English (United States) (en_US)` with Vietnamese utterances.
 
 ## Slot Types
 

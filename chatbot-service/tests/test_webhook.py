@@ -180,4 +180,3 @@ def test_fallback_webhook_does_not_call_gemini():
         assert body["sessionState"]["sessionAttributes"]["resolution_source"] == "local_nlu"
     finally:
         app.dependency_overrides.clear()
-

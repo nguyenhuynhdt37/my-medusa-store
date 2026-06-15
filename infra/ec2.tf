@@ -1,3 +1,5 @@
+# --- SSH key pair ---
+# Đăng ký public key lên AWS; private key chỉ tồn tại trên máy deploy.
 resource "aws_key_pair" "deployer" {
   key_name   = "${local.name_prefix}-deployer"
   public_key = trimspace(var.ssh_public_key)
@@ -7,6 +9,8 @@ resource "aws_key_pair" "deployer" {
   }
 }
 
+# --- Máy chủ ứng dụng ---
+# Khởi tạo Ubuntu, gắn network/IAM và chạy bootstrap. Upload file được tách ra để EC2 không bị taint khi SSH chậm.
 resource "aws_instance" "app" {
   ami                         = data.aws_ssm_parameter.ubuntu_ami.value
   instance_type               = var.instance_type
@@ -64,44 +68,10 @@ resource "aws_instance" "app" {
     Name = "${local.name_prefix}-app"
     Role = "application"
   }
-
-  provisioner "file" {
-    source      = "${path.module}/../medusa-pubic/docker-compose.yml"
-    destination = "/home/ubuntu/docker-compose.yml"
-
-    connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = file(pathexpand("~/.ssh/id_ed25519"))
-      host        = self.public_ip
-    }
-  }
-
-  provisioner "file" {
-    source      = "${path.module}/../medusa-pubic/init.sql"
-    destination = "/home/ubuntu/init.sql"
-
-    connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = file(pathexpand("~/.ssh/id_ed25519"))
-      host        = self.public_ip
-    }
-  }
-
-  provisioner "file" {
-    source      = "${path.module}/../.env.deploy"
-    destination = "/home/ubuntu/.env"
-
-    connection {
-      type        = "ssh"
-      user        = "ubuntu"
-      private_key = file(pathexpand("~/.ssh/id_ed25519"))
-      host        = self.public_ip
-    }
-  }
 }
 
+# --- Địa chỉ IP tĩnh ---
+# EIP giữ địa chỉ public ổn định khi EC2 restart và được gắn vào instance ứng dụng.
 resource "aws_eip" "app" {
   domain = "vpc"
 
@@ -110,11 +80,55 @@ resource "aws_eip" "app" {
   }
 }
 
+# Gắn EIP vào EC2 sau khi cả hai resource đã sẵn sàng.
 resource "aws_eip_association" "app" {
   allocation_id = aws_eip.app.id
   instance_id   = aws_instance.app.id
 }
 
+# --- Upload file bootstrap qua EIP ---
+# Chỉ chạy sau khi EIP đã gắn; retry SSH tại đây không làm aws_instance bị taint.
+resource "null_resource" "bootstrap_files" {
+  triggers = {
+    instance_id        = aws_instance.app.id
+    docker_compose_sha = filesha256("${path.module}/../medusa-pubic/docker-compose.yml")
+    init_sql_sha       = filesha256("${path.module}/../medusa-pubic/init.sql")
+    env_source_sha     = filesha256("${path.module}/../.env")
+    lex_bot_id         = var.managed_lex_bot_id
+    lex_bot_alias_id   = coalesce(var.lex_bot_alias_id, "TSTALIASID")
+  }
+
+  connection {
+    type        = "ssh"
+    user        = "ubuntu"
+    private_key = file(pathexpand("~/.ssh/id_ed25519"))
+    host        = aws_eip.app.public_ip
+    timeout     = "10m"
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/../medusa-pubic/docker-compose.yml"
+    destination = "/home/ubuntu/docker-compose.yml"
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/../medusa-pubic/init.sql"
+    destination = "/home/ubuntu/init.sql"
+  }
+
+  provisioner "file" {
+    source      = "${path.module}/../.env.deploy"
+    destination = "/home/ubuntu/.env"
+  }
+
+  depends_on = [
+    aws_eip_association.app,
+    null_resource.prepare_env,
+  ]
+}
+
+# --- Tạo file environment để deploy ---
+# Lấy .env làm nguồn, thay bot ID/alias ID và ghi sang .env.deploy trước khi upload.
 resource "null_resource" "prepare_env" {
   triggers = {
     lex_bot_id       = var.managed_lex_bot_id
@@ -136,6 +150,8 @@ EOF
   }
 }
 
+# --- Đồng bộ environment và restart stack ---
+# Chạy lại khi Lex ID hoặc nội dung .env thay đổi, sau đó restart Docker Compose trên EC2.
 resource "null_resource" "sync_env_and_restart" {
   triggers = {
     lex_bot_id       = var.managed_lex_bot_id
@@ -155,7 +171,7 @@ resource "null_resource" "sync_env_and_restart" {
     destination = "/home/ubuntu/.env"
   }
 
-  # Copy vào thư mục app và restart docker compose
+  # Chờ bootstrap hoàn tất, đặt .env đúng vị trí và restart các container.
   provisioner "remote-exec" {
     inline = [
       "echo 'Waiting for bootstrap to finish...'",
@@ -168,9 +184,6 @@ resource "null_resource" "sync_env_and_restart" {
   }
 
   depends_on = [
-    aws_instance.app,
-    aws_eip_association.app,
-    null_resource.prepare_env
+    null_resource.bootstrap_files,
   ]
 }
-

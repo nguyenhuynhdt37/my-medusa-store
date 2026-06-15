@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     aws_secret_access_key: str | None = None
     lex_bot_id: str | None = None
     lex_bot_alias_id: str | None = None
-    lex_locale_id: str = "vi_VN"
+    lex_locale_id: str = "en_US"
     fb_app_id: str | None = None
     fb_app_secret: str | None = None
     fb_page_access_token: str | None = None

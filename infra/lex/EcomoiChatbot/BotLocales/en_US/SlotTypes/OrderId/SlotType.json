@@ -2,13 +2,20 @@
   "name": "OrderId",
   "identifier": "1OQKDBH6N3",
   "description": null,
-  "slotTypeValues": null,
-  "parentSlotTypeSignature": "AMAZON.AlphaNumeric",
+  "slotTypeValues": [
+    {
+      "synonyms": null,
+      "sampleValue": {
+        "value": "12345"
+      }
+    }
+  ],
+  "parentSlotTypeSignature": null,
   "valueSelectionSetting": {
     "resolutionStrategy": "ORIGINAL_VALUE",
-    "advancedRecognitionSetting": null,
-    "regexFilter": {
-      "pattern": "[0-9]{4,24}"
-    }
+    "advancedRecognitionSetting": {
+      "audioRecognitionStrategy": "UseSlotValuesAsCustomVocabulary"
+    },
+    "regexFilter": null
   }
 }

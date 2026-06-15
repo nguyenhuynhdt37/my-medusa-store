@@ -6,6 +6,30 @@
   "parentIntentSignature": null,
   "sampleUtterances": [
     {
+      "utterance": "tôi muốn mua điện thoại"
+    },
+    {
+      "utterance": "toi muon mua dien thoai"
+    },
+    {
+      "utterance": "muốn mua điện thoại"
+    },
+    {
+      "utterance": "muon mua dien thoai"
+    },
+    {
+      "utterance": "tìm điện thoại"
+    },
+    {
+      "utterance": "tim dien thoai"
+    },
+    {
+      "utterance": "mua điện thoại"
+    },
+    {
+      "utterance": "mua dien thoai"
+    },
+    {
       "utterance": "tìm {product_name}"
     },
     {
@@ -78,6 +102,30 @@
       "utterance": "tim dien thoai duoi 15 trieu"
     },
     {
+      "utterance": "tôi muốn mua điện thoại giúp mình"
+    },
+    {
+      "utterance": "toi muon mua dien thoai giúp mình"
+    },
+    {
+      "utterance": "muốn mua điện thoại giúp mình"
+    },
+    {
+      "utterance": "muon mua dien thoai giúp mình"
+    },
+    {
+      "utterance": "tìm điện thoại giúp mình"
+    },
+    {
+      "utterance": "tim dien thoai giúp mình"
+    },
+    {
+      "utterance": "mua điện thoại giúp mình"
+    },
+    {
+      "utterance": "mua dien thoai giúp mình"
+    },
+    {
       "utterance": "tìm {product_name} giúp mình"
     },
     {
@@ -136,54 +184,6 @@
     },
     {
       "utterance": "con dien thoai nao tam 10 cu khong giúp mình"
-    },
-    {
-      "utterance": "có samsung dòng s không giúp mình"
-    },
-    {
-      "utterance": "co samsung dong s khong giúp mình"
-    },
-    {
-      "utterance": "tìm điện thoại dưới 15 triệu giúp mình"
-    },
-    {
-      "utterance": "tim dien thoai duoi 15 trieu giúp mình"
-    },
-    {
-      "utterance": "tìm {product_name} giup minh"
-    },
-    {
-      "utterance": "tim {product_name} giup minh"
-    },
-    {
-      "utterance": "có điện thoại {brand} không giup minh"
-    },
-    {
-      "utterance": "co dien thoai {brand} khong giup minh"
-    },
-    {
-      "utterance": "tìm máy {need} giup minh"
-    },
-    {
-      "utterance": "tim may {need} giup minh"
-    },
-    {
-      "utterance": "điện thoại tầm {budget} giup minh"
-    },
-    {
-      "utterance": "dien thoai tam {budget} giup minh"
-    },
-    {
-      "utterance": "shop có bán {product_name} không giup minh"
-    },
-    {
-      "utterance": "shop co ban {product_name} khong giup minh"
-    },
-    {
-      "utterance": "shop có {product_name} không giup minh"
-    },
-    {
-      "utterance": "shop co {product_name} khong giup minh"
     }
   ],
   "intentConfirmationSetting": null,

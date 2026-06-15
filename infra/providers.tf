@@ -1,3 +1,5 @@
+# --- Cấu hình AWS provider ---
+# Tất cả resource dùng chung region và bộ tag mặc định để truy vết môi trường.
 provider "aws" {
   region = var.aws_region
 

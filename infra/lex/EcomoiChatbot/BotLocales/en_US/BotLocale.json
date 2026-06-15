@@ -2,7 +2,7 @@
   "name": "English (US)",
   "identifier": "en_US",
   "version": null,
-  "description": "Vietnamese training data deployed on en_US because vi_VN is unavailable in the current Lex export.",
+  "description": "Vietnamese utterance training data for the en_US Lex locale.",
   "voiceSettings": {
     "voiceId": "Danielle",
     "engine": "neural"

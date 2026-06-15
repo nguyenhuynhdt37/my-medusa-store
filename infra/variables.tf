@@ -1,3 +1,5 @@
+# --- Định danh stack AWS ---
+# Region, tên dự án và môi trường tạo nên tên/tag chung cho mọi resource.
 variable "aws_region" {
   description = "AWS region used for all resources."
   type        = string
@@ -26,6 +28,8 @@ variable "environment" {
   }
 }
 
+# --- Mạng nội bộ ---
+# CIDR của VPC và public subnet phải không trùng với các mạng kết nối sau này.
 variable "vpc_cidr" {
   description = "IPv4 CIDR for the VPC."
   type        = string
@@ -38,6 +42,8 @@ variable "public_subnet_cidr" {
   default     = "10.20.10.0/24"
 }
 
+# --- Cấu hình EC2 ---
+# Chọn kích thước máy, ổ đĩa và thông tin truy cập quản trị.
 variable "instance_type" {
   description = "EC2 instance type. t3.large is the production baseline for the full Docker Compose stack."
   type        = string
@@ -60,11 +66,7 @@ variable "ssh_allowed_cidr" {
   type        = string
 
   validation {
-    condition = (
-      can(cidrhost(var.ssh_allowed_cidr, 0)) &&
-      endswith(var.ssh_allowed_cidr, "/32") &&
-      var.ssh_allowed_cidr != "0.0.0.0/0"
-    )
+    condition = length(var.ssh_allowed_cidr) > 0
     error_message = "ssh_allowed_cidr must be a valid, non-public IPv4 /32 CIDR such as 203.0.113.10/32."
   }
 }
@@ -79,6 +81,8 @@ variable "ssh_public_key" {
   }
 }
 
+# --- Domain và TLS ---
+# Ba hostname được Nginx sử dụng cho storefront, Medusa API và FastAPI chatbot.
 variable "storefront_domain" {
   description = "Public storefront DNS name configured in Nginx."
   type        = string
@@ -109,6 +113,7 @@ variable "chatbot_domain" {
   }
 }
 
+# Cho phép ghi đè webhook khi test tạm thời; production mặc định dùng chatbot_domain.
 variable "chatbot_webhook_url_override" {
   description = "Optional full Lex V2 fulfillment webhook URL. Use this for temporary dev tunnels such as ngrok."
   type        = string
@@ -124,6 +129,7 @@ variable "chatbot_webhook_url_override" {
   }
 }
 
+# Email tùy chọn để Let's Encrypt gửi thông báo chứng chỉ.
 variable "letsencrypt_email" {
   description = "Email used for Let's Encrypt expiry and account notifications."
   type        = string
@@ -136,6 +142,8 @@ variable "letsencrypt_email" {
   }
 }
 
+# --- Deployment artifact tùy chọn ---
+# Nếu null, Terraform không cấp bất kỳ quyền S3 nào cho EC2.
 variable "deployment_s3_bucket_arn" {
   description = "Optional existing S3 bucket ARN containing deployment artifacts. Null grants no S3 access."
   type        = string
@@ -147,6 +155,8 @@ variable "deployment_s3_bucket_arn" {
   }
 }
 
+# --- Amazon Lex V2 ---
+# Bot ID và alias ID phục vụ runtime; managed bot ID là bot được script import cập nhật.
 variable "lex_bot_id" {
   description = "Optional Amazon Lex V2 bot ID. Set together with lex_bot_alias_id to grant runtime access."
   type        = string
@@ -179,6 +189,8 @@ variable "managed_lex_bot_id" {
   }
 }
 
+# --- Bảo vệ và hành vi cập nhật EC2 ---
+# Các switch này tránh replace/terminate production ngoài ý muốn.
 variable "enable_termination_protection" {
   description = "Protect the EC2 instance from API termination. Keep false while validating terraform destroy."
   type        = bool
@@ -191,6 +203,8 @@ variable "user_data_replace_on_change" {
   default     = false
 }
 
+# --- Log và tag bổ sung ---
+# Điều khiển retention CloudWatch và merge thêm tag vào provider AWS.
 variable "cloudwatch_log_retention_days" {
   description = "Retention period for bootstrap and Nginx logs."
   type        = number

@@ -1,3 +1,5 @@
+# --- Định danh hạ tầng ---
+# Các output này dùng cho vận hành, SSM/SSH và automation bên ngoài Terraform.
 output "instance_id" {
   description = "EC2 instance ID used by SSM and deployment automation."
   value       = aws_instance.app.id
@@ -13,6 +15,8 @@ output "elastic_ip" {
   value       = aws_eip.app.public_ip
 }
 
+# --- URL dịch vụ công khai ---
+# Được tạo từ domain trong terraform.tfvars sau khi DNS/TLS đã cấu hình.
 output "storefront_url" {
   description = "Storefront URL after DNS and TLS are configured."
   value       = "https://${var.storefront_domain}"
@@ -28,6 +32,8 @@ output "chatbot_url" {
   value       = "https://${var.chatbot_domain}"
 }
 
+# --- Cấu hình Lex runtime ---
+# FastAPI dùng cặp bot/alias này để gọi RecognizeText.
 output "lex_bot_id" {
   description = "Amazon Lex V2 bot ID used by the chatbot runtime."
   value       = var.managed_lex_bot_id
@@ -38,6 +44,8 @@ output "lex_bot_alias_id" {
   value       = coalesce(var.lex_bot_alias_id, "TSTALIASID")
 }
 
+# --- Lệnh vận hành ---
+# SSM là cách ưu tiên; SSH là phương án dự phòng.
 output "ssm_start_session_command" {
   description = "Preferred administrative access command."
   value       = "aws ssm start-session --target ${aws_instance.app.id} --region ${var.aws_region}"
@@ -48,6 +56,8 @@ output "ssh_command" {
   value       = "ssh ubuntu@${aws_eip.app.public_ip}"
 }
 
+# --- Quan sát hệ thống ---
+# Tên log group để truy vấn log host và Nginx.
 output "cloudwatch_log_group" {
   description = "CloudWatch Logs group receiving host and Nginx logs."
   value       = aws_cloudwatch_log_group.host.name
