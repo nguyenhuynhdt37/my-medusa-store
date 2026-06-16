@@ -22,12 +22,12 @@ Nếu chạy script tạo Lex Bot trước khi chạy Terraform:
 ## 2. Quy trình 4 bước khởi tạo (Bootstrap Workflow)
 
 ### Bước 1: Khởi chạy Terraform lần đầu (Tạo hạ tầng nền)
-Đảm bảo bạn đã điền các biến cơ bản trong `terraform.tfvars` (tạm thời điền `managed_lex_bot_id` bằng một giá trị giả lập như `"TEMP_BOT_ID"`). Sau đó chạy:
+Đảm bảo bạn đã điền các biến cơ bản trong `terraform.tfvars` (tạm thời điền `managed_lex_bot_id` bằng một giá trị giả lập có 10 ký tự viết hoa/số như `"EMPTYBOTID"`). Sau đó chạy:
 ```bash
 terraform apply -auto-approve
 ```
 * **Kết quả mong đợi**: Terraform tạo xong VPC, EC2, IAM, EIP và hàm Lambda `chatbot-lambda`.
-* *Lưu ý*: Tiền trình này ở cuối sẽ báo lỗi ở block `terraform_data.lex_bot_deployment` vì `TEMP_BOT_ID` chưa tồn tại thực tế trên AWS. Điều này hoàn toàn bình thường, các hạ tầng cơ bản đã được tạo xong.
+* *Lưu ý*: Tiến trình này ở cuối sẽ báo lỗi ở block `terraform_data.lex_bot_deployment` vì `"EMPTYBOTID"` chưa tồn tại thực tế trên AWS. Điều này hoàn toàn bình thường, các hạ tầng cơ bản đã được tạo xong.
 
 ### Bước 2: Tạo Lex Bot mới trên AWS
 Chạy script triển khai bot bằng cờ `--allow-create` để cấp quyền tạo mới:
