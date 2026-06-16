@@ -66,7 +66,7 @@ variable "ssh_allowed_cidr" {
   type        = string
 
   validation {
-    condition = length(var.ssh_allowed_cidr) > 0
+    condition     = length(var.ssh_allowed_cidr) > 0
     error_message = "ssh_allowed_cidr must be a valid, non-public IPv4 /32 CIDR such as 203.0.113.10/32."
   }
 }

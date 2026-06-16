@@ -400,10 +400,8 @@ mv /home/ubuntu/.env "$APP_DIR/.env"
 ln -sf "$APP_DIR/.env" "$APP_DIR/medusa-pubic/.env"
 chown -R ubuntu:ubuntu "$APP_DIR"
 
-# Start Docker containers using medusa-pubic/docker-compose.yml
-echo "Running docker compose..."
-cd "$APP_DIR"
-docker compose -f medusa-pubic/docker-compose.yml up -d --remove-orphans
+# Terraform remote-exec sẽ start/restart Docker Compose sau khi bootstrap hoàn tất.
+# Không chạy compose ở user_data để tránh 2 tiến trình cùng pull/start image trên máy mới.
 
 cat >/etc/motd <<'EOF'
 Managed by Terraform.

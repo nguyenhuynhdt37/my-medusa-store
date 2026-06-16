@@ -204,4 +204,18 @@ aws lexv2-models update-bot-alias \
     --bot-alias-locale-settings "$LOCALE_SETTINGS" \
     --region "$AWS_REGION" >/dev/null
 
+# Tự động cập nhật ID của Bot mới vào terraform.tfvars
+if [[ -f "$INFRA_DIR/terraform.tfvars" ]]; then
+    echo "Updating managed_lex_bot_id in terraform.tfvars to $BOT_ID..." >&2
+    python3 -c "
+import re
+path = '$INFRA_DIR/terraform.tfvars'
+with open(path, 'r') as f:
+    content = f.read()
+content = re.sub(r'^managed_lex_bot_id\s*=\s*\".*\"', 'managed_lex_bot_id = \"$BOT_ID\"', content, flags=re.MULTILINE)
+with open(path, 'w') as f:
+    f.write(content)
+"
+fi
+
 jq -cn --arg bot_id "$BOT_ID" --arg locale_id "$LOCALE_ID" '{bot_id:$bot_id,locale_id:$locale_id}'

@@ -96,11 +96,6 @@ resource "aws_lambda_permission" "allow_lex" {
 # --- Generate và deploy Lex V2 cùng terraform apply ---
 # Hash hai script làm trigger. Khi một script thay đổi, Terraform thay resource và chạy lại import.
 resource "terraform_data" "lex_bot_deployment" {
-  input = {
-    bot_id = var.managed_lex_bot_id
-    region = var.aws_region
-  }
-
   triggers_replace = [
     filesha256("${path.module}/scripts/generate_lex_export.py"),
     filesha256("${path.module}/scripts/import_lex_bot.sh"),
@@ -119,13 +114,8 @@ resource "terraform_data" "lex_bot_deployment" {
     }
   }
 
-  # Xóa bot Lex V2 trên AWS khi chạy terraform destroy
-  provisioner "local-exec" {
-    when    = destroy
-    command = "aws lexv2-models delete-bot --bot-id ${self.output.bot_id} --skip-resource-in-use-check --region ${self.output.region} || true"
-  }
-
   depends_on = [
     aws_lambda_permission.allow_lex,
   ]
 }
+

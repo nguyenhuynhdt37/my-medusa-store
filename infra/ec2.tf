@@ -133,6 +133,7 @@ resource "null_resource" "prepare_env" {
   triggers = {
     lex_bot_id       = var.managed_lex_bot_id
     lex_bot_alias_id = coalesce(var.lex_bot_alias_id, "TSTALIASID")
+    env_hash         = filesha256("${path.module}/../.env")
   }
 
   provisioner "local-exec" {
@@ -151,12 +152,13 @@ EOF
 }
 
 # --- Đồng bộ environment và restart stack ---
-# Chạy lại khi Lex ID hoặc nội dung .env thay đổi, sau đó restart Docker Compose trên EC2.
+# Chạy lại khi Lex ID hoặc nội dung .env thay đổi, hoặc file bootstrap thay đổi, sau đó restart Docker Compose trên EC2.
 resource "null_resource" "sync_env_and_restart" {
   triggers = {
     lex_bot_id       = var.managed_lex_bot_id
     lex_bot_alias_id = coalesce(var.lex_bot_alias_id, "TSTALIASID")
     env_hash         = filesha256("${path.module}/../.env")
+    bootstrap_id     = null_resource.bootstrap_files.id
   }
 
   connection {
@@ -178,8 +180,9 @@ resource "null_resource" "sync_env_and_restart" {
       "until [ -f /opt/${var.project_name}/app/medusa-pubic/docker-compose.yml ]; do sleep 5; done",
       "[ -f /home/ubuntu/.env ] && sudo mv /home/ubuntu/.env /opt/${var.project_name}/app/.env || true",
       "sudo ln -sf /opt/${var.project_name}/app/.env /opt/${var.project_name}/app/medusa-pubic/.env",
-      "sudo chown ubuntu:ubuntu /opt/${var.project_name}/app/.env || true",
-      "cd /opt/${var.project_name}/app && sudo docker compose -f medusa-pubic/docker-compose.yml up -d --remove-orphans"
+      "cd /opt/${var.project_name}/app",
+      "sudo env COMPOSE_PROGRESS=plain docker compose -f medusa-pubic/docker-compose.yml down --remove-orphans || true",
+      "sudo env COMPOSE_PROGRESS=plain docker compose -f medusa-pubic/docker-compose.yml up -d --remove-orphans"
     ]
   }
 
