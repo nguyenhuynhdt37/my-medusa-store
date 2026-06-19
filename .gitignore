@@ -54,9 +54,7 @@ yarn-error.log*
 **/.env.deploy
 
 # Local production database dumps may contain customer data and credentials
-/medusa-pubic/init.sql
 /ecomoi.sql
-/backups/
 
 # Terraform local state and plans
 **/.terraform/
