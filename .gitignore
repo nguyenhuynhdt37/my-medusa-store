@@ -29,8 +29,11 @@ __pycache__/
 **/build
 **/dist
 
-# Misc
-*.pem
+# Private credentials
+*private*.pem
+*privkey*.pem
+id_rsa
+id_ed25519
 google-credentials*.json
 service-account*.json
 ADMIN_CREDENTIALS.md
@@ -53,6 +56,7 @@ yarn-error.log*
 # Local production database dumps may contain customer data and credentials
 /medusa-pubic/init.sql
 /ecomoi.sql
+/backups/
 
 # Terraform local state and plans
 **/.terraform/
