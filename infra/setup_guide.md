@@ -35,7 +35,7 @@ Chạy script triển khai bot bằng cờ `--allow-create` để cấp quyền 
 ./scripts/import_lex_bot.sh --allow-create
 ```
 * **Kết quả mong đợi**: Script sẽ tự động lấy Lambda ARN đã tạo ở Bước 1, nén cấu hình JSON trong thư mục `infra/lex`, tạo mới Bot trên AWS, build locale và liên kết với Lambda.
-* Khi kết thúc, script sẽ tự động ghi đè ID của Bot mới tạo vào biến `managed_lex_bot_id` trong file [terraform.tfvars](file:///Users/huynh/codes/project_dtdm/my-medusa-store/infra/terraform.tfvars) cho bạn.
+* Khi kết thúc, script sẽ tự động ghi đè ID của Bot mới tạo vào biến `managed_lex_bot_id` trong file `infra/terraform.tfvars` cho bạn.
 
 ### Bước 3: Chạy Terraform lần hai để hoàn tất
 Chạy lại lệnh apply để Terraform đồng bộ ID bot thật vào biến môi trường của EC2 và kích hoạt Docker Compose:

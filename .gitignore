@@ -65,7 +65,6 @@ yarn-error.log*
 **/*.tfplan
 **/tfplan
 **/tfplan-replace
-**/terraform.tfvars
 **/*.auto.tfvars
 **/.terraformrc
 **/terraform.rc
